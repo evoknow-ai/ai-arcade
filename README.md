@@ -32,7 +32,7 @@ go build -o arcade-server .
 
 or `docker build -t arcade-server . && docker run -p 8080:8080 -v arcade-data:/data arcade-server`.
 
-Put it behind nginx with TLS (see `nginx.conf.example`) and set `API_BASE` in `extension/config.js`
+Put it behind nginx with TLS (see `nginx.conf.example`, which adds one `location /arcade/api/` block to the Ghost site config) and set `API_BASE` in `extension/config.js`
 and `host_permissions` in `manifest.json` to that host.
 
 ### API

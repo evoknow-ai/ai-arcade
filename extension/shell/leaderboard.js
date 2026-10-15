@@ -8,8 +8,9 @@ async function hmac(secret, body) {
 
 // Queue a score locally; the background worker flushes it to the server.
 export async function submitScore(apiBase, { gameId, score, level, durationMs, log }) {
-  const { playerId, displayName } = await store.getIdentity();
-  const entry = { gameId, score, level, durationMs, log, playerId, name: displayName || "Player", ts: Date.now() };
+  const { playerId, playerSecret, displayName } = await store.getIdentity();
+  // secret rides along in the body so the server can register this install on first contact (TOFU)
+  const entry = { gameId, score, level, durationMs, log, playerId, secret: playerSecret, name: displayName || "Player", ts: Date.now() };
   const { scoreQueue = [] } = await store.get("scoreQueue");
   scoreQueue.push(entry);
   await store.set({ scoreQueue });
@@ -54,7 +55,7 @@ export async function refreshLeaderboards(apiBase) {
 
 export async function registerName(apiBase, name) {
   const { playerId, playerSecret } = await store.getIdentity();
-  const body = JSON.stringify({ playerId, name });
+  const body = JSON.stringify({ playerId, name, secret: playerSecret });
   await fetch(`${apiBase}/players`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Player": playerId, "X-Signature": await hmac(playerSecret, body) },
