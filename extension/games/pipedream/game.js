@@ -47,11 +47,11 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
     onPointer, onHover, onInput, init, update, render, hud,
     autopilot,
   };
-  let board, queue, fluid, flow, countdown, levelTime, target, filledCount, hover, hintCell, hintOn, msg, msgTtl, shake, particles, gasPressure, pendingNextLevel;
+  let board, queue, fluid, flow, countdown, levelTime, target, filledCount, hover, hintCell, hintOn, msg, msgTtl, shake, particles, popups, gasPressure, pendingNextLevel;
 
   function init(shell) {
     g.score = 0; g.level = 1;
-    hintOn = autopilot; particles = []; shake = 0;
+    hintOn = autopilot; particles = []; popups = []; shake = 0;
     startLevel(shell);
   }
 
@@ -149,6 +149,7 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
     if (msgTtl > 0) msgTtl--;
     if (shake > 0) shake--;
     particles = particles.filter(p => (p.ttl -= 1) > 0);
+    popups = popups.filter(p => (p.ttl -= 1) > 0);
     for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vy += 0.15; }
 
     if (pendingNextLevel > 0) { if (--pendingNextLevel === 0) { g.level++; shell.audio.levelUp(); startLevel(shell); } return; }
@@ -171,7 +172,7 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
     const cell = flow.cell;
     if (cell.shape === "timer" && cell.holdLeft > 0 && flow.progress >= Math.floor(flow.segTicks / 2)) {
       cell.holdLeft--;
-      if (cell.holdLeft === 0) { g.score += cell.hold * 10; say(`Timer released +${cell.hold * 10}`, 60); shell.audio.levelUp(); }
+      if (cell.holdLeft === 0) { g.score += cell.hold * 10; say(`Timer released +${cell.hold * 10}`, 60); pop(flow.x, flow.y, "+" + cell.hold * 10, T?.marquee || "#FFD447"); shell.audio.levelUp(); }
       else if (cell.holdLeft % 60 === 0) shell.audio.tone({ freq: 700, type: "triangle", dur: 0.04, vol: 0.06 });
       flow.progress = Math.floor(flow.segTicks / 2); updateFill(); return;
     }
@@ -188,7 +189,7 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
     let exit;
     if (t.kind === "bomb") {
       exit = flow.dir; // bombs pass straight through
-      if (!t.defused) { t.defused = true; g.score += 200 * g.level; say("Bomb defused +" + 200 * g.level, 90); burst(nx, ny, T?.marquee || "#FFD447", 24); shell.audio.levelUp(); }
+      if (!t.defused) { t.defused = true; g.score += 200 * g.level; say("Bomb defused +" + 200 * g.level, 90); pop(nx, ny, "+" + 200 * g.level, T?.marquee || "#FFD447"); burst(nx, ny, T?.marquee || "#FFD447", 24); shell.audio.levelUp(); }
     } else {
       const open = SHAPES[t.shape];
       if (!open.includes(entry)) return flowEnds(shell, "spilled");
@@ -196,7 +197,7 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
         const horiz = entry === L || entry === R;
         if ((horiz && t.fillA >= 1) || (!horiz && t.fillB >= 1)) return flowEnds(shell, "spilled");
         exit = OPP[entry];
-        if ((horiz && t.fillB >= 1) || (!horiz && t.fillA >= 1)) { g.score += 100; say("Double cross +100", 45); }
+        if ((horiz && t.fillB >= 1) || (!horiz && t.fillA >= 1)) { g.score += 100; say("Double cross +100", 45); pop(nx, ny, "+100", T?.marquee || "#FFD447"); }
         if (horiz) t.inA = entry; else t.inB = entry;
       } else if (t.shape === "timer") {
         if (t.fill >= 1) return flowEnds(shell, "spilled");
@@ -219,7 +220,7 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
         if (t.fill >= 1) return flowEnds(shell, "spilled");
         exit = magicRoute(nx, ny, entry, shell);
         t.in = entry; t.out = exit;
-        g.score += 75; say("Magic block routes the flow +75", 60); burst(nx, ny, T?.marquee || "#FFD447", 18);
+        g.score += 75; say("Magic block routes the flow +75", 60); pop(nx, ny, "+75", T?.marquee || "#FFD447"); burst(nx, ny, T?.marquee || "#FFD447", 18);
       } else {
         if (t.fill >= 1) return flowEnds(shell, "spilled");
         exit = open[0] === entry ? open[1] : open[0];
@@ -262,7 +263,11 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
   function finishFill(t) {
     if (t.shape === "x") { if (flow.entry === L || flow.entry === R) t.fillA = 1; else t.fillB = 1; } else t.fill = 1;
     filledCount++;
-    g.score += Math.round(50 * fluid.mult * g.level + (t.slow ? 150 : 0));
+    const pts = Math.round(50 * fluid.mult * g.level + (t.slow ? 150 : 0));
+    g.score += pts; pop(flow.x, flow.y, "+" + pts, fc());
+  }
+  function pop(cx, cy, text, color) {
+    popups.push({ x: QUEUE_W + cx * CELL + CELL / 2, y: TOP + cy * CELL + CELL / 2 - 6, text, color, ttl: 55 });
   }
   function flowEnds(shell, why) {
     flow.active = false;
@@ -361,8 +366,9 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
   }
 
   // ---------- render ----------
+  let tickNow = 0;
   function render(c, shell) {
-    T = shell.theme;
+    T = shell.theme; tickNow = shell.tick || 0;
     hintCell = hintOn ? computeHint() : null;
     c.save();
     if (shake > 0) c.translate((Math.random() - 0.5) * shake * 0.6, (Math.random() - 0.5) * shake * 0.6);
@@ -397,11 +403,15 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
     for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
       const px = QUEUE_W + x * CELL, py = TOP + y * CELL;
       c.fillStyle = (x + y) % 2 ? T.board2 : T.board1; c.fillRect(px, py, CELL, CELL);
+      c.fillStyle = "#ffffff07"; c.fillRect(px, py, CELL, 1); c.fillRect(px, py, 1, CELL);
+      c.fillStyle = "#00000022"; c.fillRect(px, py + CELL - 1, CELL, 1); c.fillRect(px + CELL - 1, py, 1, CELL);
       const t = board[y][x];
       if (!t) continue;
       if (t.kind === "rock") {
-        c.fillStyle = t.scorched ? "#2A1E24" : T.rock; rr(c, px + 5, py + 5, CELL - 10, CELL - 10, 10); c.fill();
-        c.fillStyle = "#ffffff12"; rr(c, px + 9, py + 9, CELL - 18, 8, 4); c.fill();
+        c.fillStyle = "#00000055"; rr(c, px + 7, py + 8, CELL - 10, CELL - 10, 10); c.fill();
+        const rg = c.createRadialGradient(px + CELL * 0.35, py + CELL * 0.3, 4, px + CELL / 2, py + CELL / 2, CELL * 0.7);
+        rg.addColorStop(0, shade(t.scorched ? "#3A2A32" : T.rock, 0.35)); rg.addColorStop(1, shade(t.scorched ? "#2A1E24" : T.rock, -0.35));
+        c.fillStyle = rg; rr(c, px + 5, py + 5, CELL - 10, CELL - 10, 10); c.fill();
         if (t.scorched) { c.fillStyle = T.bg; c.beginPath(); c.arc(px + CELL / 2, py + CELL / 2, 8, 0, 7); c.fill(); }
         continue;
       }
@@ -424,8 +434,19 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
       c.globalAlpha = 0.4 + pulse * 0.6; c.strokeStyle = T.hint; c.lineWidth = 3; rr(c, px + 3, py + 3, CELL - 6, CELL - 6, 6); c.stroke(); c.globalAlpha = 1;
     }
     // particles
-    for (const p of particles) { c.globalAlpha = Math.min(1, p.ttl / 20); c.fillStyle = p.color; c.fillRect(p.x, p.y, 3, 3); }
+    for (const p of particles) { c.globalAlpha = Math.min(1, p.ttl / 20); c.fillStyle = p.color; c.shadowColor = p.color; c.shadowBlur = 6; c.beginPath(); c.arc(p.x, p.y, 2, 0, 7); c.fill(); }
+    c.shadowBlur = 0; c.globalAlpha = 1;
+    // floating score popups
+    for (const p of popups) {
+      const k = 1 - p.ttl / 55;
+      c.globalAlpha = Math.min(1, p.ttl / 15); c.fillStyle = p.color; c.font = `800 ${Math.round(15 + k * 6)}px system-ui,sans-serif`; c.textAlign = "center"; c.textBaseline = "middle";
+      c.shadowColor = "#000"; c.shadowBlur = 6; c.fillText(p.text, p.x, p.y - k * 28); c.shadowBlur = 0;
+    }
     c.globalAlpha = 1;
+    // vignette over the board for depth
+    const vg = c.createRadialGradient(QUEUE_W + COLS * CELL / 2, TOP + ROWS * CELL / 2, COLS * CELL * 0.25, QUEUE_W + COLS * CELL / 2, TOP + ROWS * CELL / 2, COLS * CELL * 0.75);
+    vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,0.35)");
+    c.fillStyle = vg; c.fillRect(QUEUE_W, TOP, COLS * CELL, ROWS * CELL);
 
     // countdown
     if (!flow.active && countdown > 0 && pendingNextLevel === 0) {
@@ -447,18 +468,26 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
   }
 
   function drawSource(c, px, py, t) {
-    c.fillStyle = T.surface3; rr(c, px + 4, py + 4, CELL - 8, CELL - 8, 8); c.fill();
     const cx = px + CELL / 2, cy = py + CELL / 2;
-    c.strokeStyle = fc(); c.lineWidth = 14; c.lineCap = "butt";
-    c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + DX[t.dir] * CELL / 2, cy + DY[t.dir] * CELL / 2); c.stroke();
-    c.fillStyle = fc(); c.beginPath(); c.arc(cx, cy, 11, 0, 7); c.fill();
+    c.fillStyle = "#00000055"; rr(c, px + 6, py + 7, CELL - 8, CELL - 8, 8); c.fill();
+    const tg = c.createLinearGradient(px, py, px + CELL, py + CELL); tg.addColorStop(0, shade(T.surface3, 0.25)); tg.addColorStop(1, shade(T.surface3, -0.3));
+    c.fillStyle = tg; rr(c, px + 4, py + 4, CELL - 8, CELL - 8, 8); c.fill();
+    tube(c, cx, cy, cx + DX[t.dir] * CELL / 2, cy + DY[t.dir] * CELL / 2, CELL * 0.32, T.pipe);
+    liquid(c, cx, cy, cx + DX[t.dir] * CELL / 2, cy + DY[t.dir] * CELL / 2, CELL * 0.17, true);
+    const pulse = 0.6 + 0.4 * Math.sin((tickNow || 0) / 8);
+    c.shadowColor = fc(); c.shadowBlur = 14 * pulse;
+    c.fillStyle = fc(); c.beginPath(); c.arc(cx, cy, 12, 0, 7); c.fill(); c.shadowBlur = 0;
+    c.fillStyle = shade(fc(), 0.45); c.beginPath(); c.arc(cx - 3, cy - 3, 4, 0, 7); c.fill();
     c.fillStyle = T.bg; c.beginPath(); c.arc(cx, cy, 5, 0, 7); c.fill();
   }
   function drawBomb(c, px, py, t) {
     const cx = px + CELL / 2, cy = py + CELL / 2;
-    c.strokeStyle = T.pipe; c.lineWidth = 16; c.beginPath(); c.moveTo(px, cy); c.lineTo(px + CELL, cy); c.moveTo(cx, py); c.lineTo(cx, py + CELL); c.stroke();
-    if (t.defused) { c.strokeStyle = fc(); c.lineWidth = 8; c.beginPath(); c.moveTo(px, cy); c.lineTo(px + CELL, cy); c.moveTo(cx, py); c.lineTo(cx, py + CELL); c.stroke(); }
-    c.fillStyle = t.defused ? T.cyan : T.accent; c.beginPath(); c.arc(cx, cy, 14, 0, 7); c.fill();
+    tube(c, px, cy, px + CELL, cy, 16, T.pipe); tube(c, cx, py, cx, py + CELL, 16, T.pipe);
+    if (t.defused) { liquid(c, px, cy, px + CELL, cy, 8, false); liquid(c, cx, py, cx, py + CELL, 8, false); }
+    const blink = !t.defused && t.fuse < 600 && Math.floor(tickNow / 8) % 2 === 0;
+    c.shadowColor = t.defused ? T.cyan : T.accent; c.shadowBlur = blink ? 22 : 10;
+    const bg = c.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, 15); bg.addColorStop(0, shade(t.defused ? T.cyan : T.accent, 0.4)); bg.addColorStop(1, shade(t.defused ? T.cyan : T.accent, -0.25));
+    c.fillStyle = bg; c.beginPath(); c.arc(cx, cy, 14, 0, 7); c.fill(); c.shadowBlur = 0;
     c.fillStyle = T.bg; c.font = "800 13px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
     c.fillText(t.defused ? "✓" : String(Math.ceil(t.fuse / 60)), cx, cy + 1);
   }
@@ -466,15 +495,17 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
     const cx = px + size / 2, cy = py + size / 2, half = size / 2;
     const open = SHAPES[t.shape];
     const wall = t.valve ? T.textDim : t.slow ? T.pipeDark : T.pipe;
-    c.lineCap = "butt"; c.strokeStyle = wall; c.lineWidth = size * 0.32;
+    const tw = size * 0.32;
+    const arms = (dirs) => { for (const d of dirs) tube(c, cx, cy, cx + DX[d] * half, cy + DY[d] * half, tw, wall); };
     if (t.shape === "x") {
-      c.beginPath(); c.moveTo(px, cy); c.lineTo(px + size, cy); c.moveTo(cx, py); c.lineTo(cx, py + size); c.stroke();
-      c.strokeStyle = T.surface; c.lineWidth = size * 0.2; c.beginPath(); c.moveTo(cx, py); c.lineTo(cx, py + size); c.stroke();
-      c.strokeStyle = wall; c.lineWidth = size * 0.32; c.beginPath(); c.moveTo(cx, py); c.lineTo(cx, py + size); c.stroke();
+      arms([L, R]);
       if (t.fillA) fillSeg(c, cx, cy, half, t.inA ?? L, OPP[t.inA ?? L], t.fillA);
+      // vertical pipe passes over the horizontal one
+      c.fillStyle = "#00000066"; c.fillRect(cx - tw * 0.6, cy - tw * 0.6, tw * 1.2, tw * 1.2);
+      arms([U, D]);
       if (t.fillB) fillSeg(c, cx, cy, half, t.inB ?? U, OPP[t.inB ?? U], t.fillB);
     } else if (t.shape === "timer") {
-      c.beginPath(); for (const d of open) { c.moveTo(cx, cy); c.lineTo(cx + DX[d] * half, cy + DY[d] * half); } c.stroke();
+      arms(open);
       if (t.fill && t.in != null) fillSeg(c, cx, cy, half, t.in, t.out, t.fill);
       // the clock: a dial that drains as it holds the fluid
       const r = size * 0.3, frac = t.holdLeft / (t.hold * 60);
@@ -488,17 +519,15 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
       c.fillText(t.holdLeft > 0 ? String(Math.ceil(t.holdLeft / 60)) : "✓", cx, cy + 1);
     } else if (t.shape === "magic") {
       // four-way junction with a glowing core; once routed it shows only entry → exit
-      c.strokeStyle = wall; c.lineWidth = size * 0.32;
-      c.beginPath(); for (const d of open) { c.moveTo(cx, cy); c.lineTo(cx + DX[d] * half, cy + DY[d] * half); } c.stroke();
+      arms(open);
       const pulse = 0.6 + 0.4 * Math.sin((shell?.tick || 0) / 5);
       c.fillStyle = T.marquee; c.globalAlpha = 0.35 * pulse; c.beginPath(); c.arc(cx, cy, size * 0.3, 0, 7); c.fill(); c.globalAlpha = 1;
       star(c, cx, cy, size * 0.2, size * 0.09); c.fillStyle = T.marquee; c.fill();
       if (t.fill && t.in != null) fillSeg(c, cx, cy, half, t.in, t.out, t.fill);
     } else {
-      c.beginPath();
-      for (const d of open) { c.moveTo(cx, cy); c.lineTo(cx + DX[d] * half, cy + DY[d] * half); }
-      c.stroke();
-      c.beginPath(); c.arc(cx, cy, size * 0.16, 0, 7); c.fillStyle = wall; c.fill();
+      arms(open);
+      // joint cap at the elbow
+      if (open[0] !== OPP[open[1]]) { const jg = c.createRadialGradient(cx - 2, cy - 2, 1, cx, cy, size * 0.18); jg.addColorStop(0, shade(wall, 0.35)); jg.addColorStop(1, shade(wall, -0.3)); c.fillStyle = jg; c.beginPath(); c.arc(cx, cy, size * 0.17, 0, 7); c.fill(); }
       if (t.slow) { c.fillStyle = T.surface; c.beginPath(); c.arc(cx, cy, size * 0.28, 0, 7); c.fill(); c.strokeStyle = wall; c.lineWidth = 3; c.stroke(); }
       if (t.valve) { c.fillStyle = T.marquee; c.beginPath(); c.arc(cx, cy, size * 0.14, 0, 7); c.fill(); }
       if (t.fill) fillSeg(c, cx, cy, half, t.in ?? open[0], t.out ?? open[1], t.fill);
@@ -507,20 +536,47 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
   // draw liquid from the `from` side toward the `to` side, progress p in [0,1]
   function fillSeg(c, cx, cy, half, from, to, p) {
     if (!p) return;
-    c.strokeStyle = fc(); c.lineWidth = half * 0.36; c.lineCap = "butt";
-    c.shadowColor = fc(); c.shadowBlur = 8;
-    c.beginPath();
+    const w = half * 0.36, moving = p < 1;
+    const fx = cx + DX[from] * half, fy = cy + DY[from] * half;
     if (p <= 0.5) {
       const k = p / 0.5;
-      c.moveTo(cx + DX[from] * half, cy + DY[from] * half); c.lineTo(cx + DX[from] * half * (1 - k), cy + DY[from] * half * (1 - k));
+      liquid(c, fx, fy, cx + DX[from] * half * (1 - k), cy + DY[from] * half * (1 - k), w, moving);
     } else {
       const k = (p - 0.5) / 0.5;
-      c.moveTo(cx + DX[from] * half, cy + DY[from] * half); c.lineTo(cx, cy);
-      c.lineTo(cx + DX[to] * half * k, cy + DY[to] * half * k);
+      liquid(c, fx, fy, cx, cy, w, moving);
+      liquid(c, cx, cy, cx + DX[to] * half * k, cy + DY[to] * half * k, w, moving);
+      c.fillStyle = fc(); c.beginPath(); c.arc(cx, cy, w / 2, 0, 7); c.fill();
     }
-    c.stroke();
+  }
+  // ---- 3D-ish primitives ----
+  // a cylindrical tube: shadow, body, highlight ridge and dark edge, all lit from top-left
+  function tube(c, x1, y1, x2, y2, w, color) {
+    c.lineCap = "butt";
+    c.strokeStyle = "rgba(0,0,0,0.45)"; c.lineWidth = w; c.beginPath(); c.moveTo(x1 + 2, y1 + 3); c.lineTo(x2 + 2, y2 + 3); c.stroke();
+    const horiz = y1 === y2, ox = horiz ? 0 : 1, oy = horiz ? 1 : 0; // perpendicular offset
+    c.strokeStyle = color; c.lineWidth = w; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+    c.strokeStyle = shade(color, -0.35); c.lineWidth = w * 0.3; c.beginPath(); c.moveTo(x1 + ox * w * 0.3, y1 + oy * w * 0.3); c.lineTo(x2 + ox * w * 0.3, y2 + oy * w * 0.3); c.stroke();
+    c.strokeStyle = shade(color, 0.4); c.lineWidth = w * 0.22; c.beginPath(); c.moveTo(x1 - ox * w * 0.22, y1 - oy * w * 0.22); c.lineTo(x2 - ox * w * 0.22, y2 - oy * w * 0.22); c.stroke();
+  }
+  // glowing liquid with a specular line and, while moving, drifting flow stripes
+  function liquid(c, x1, y1, x2, y2, w, moving) {
+    if (x1 === x2 && y1 === y2) return;
+    const col = fc();
+    c.lineCap = "butt";
+    c.shadowColor = col; c.shadowBlur = 10;
+    c.strokeStyle = col; c.lineWidth = w; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
     c.shadowBlur = 0;
-    c.fillStyle = fc(); if (p > 0.5) { c.beginPath(); c.arc(cx, cy, half * 0.18, 0, 7); c.fill(); }
+    const horiz = y1 === y2, ox = horiz ? 0 : 1, oy = horiz ? 1 : 0;
+    c.strokeStyle = shade(col, 0.5); c.lineWidth = w * 0.22; c.globalAlpha = 0.9; c.beginPath(); c.moveTo(x1 - ox * w * 0.25, y1 - oy * w * 0.25); c.lineTo(x2 - ox * w * 0.25, y2 - oy * w * 0.25); c.stroke(); c.globalAlpha = 1;
+    if (moving) {
+      c.save(); c.setLineDash([5, 9]); c.lineDashOffset = -(tickNow * 0.9) % 14; c.strokeStyle = "rgba(255,255,255,0.35)"; c.lineWidth = w * 0.4;
+      c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); c.restore();
+    }
+  }
+  function shade(hex, amt) { // lighten (>0) or darken (<0) a #rrggbb
+    if (!hex || hex[0] !== "#" || hex.length < 7) return hex;
+    const ch = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+    return "#" + ch.map(v => Math.max(0, Math.min(255, Math.round(amt > 0 ? v + (255 - v) * amt : v * (1 + amt)))).toString(16).padStart(2, "0")).join("");
   }
   function star(c, cx, cy, r1, r2) {
     c.beginPath();

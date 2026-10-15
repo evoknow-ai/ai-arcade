@@ -42,15 +42,18 @@ async function renderStore() {
   async function list(genre) {
     const ul = $("games"); ul.innerHTML = "";
     const { bests = {} } = await store.get("bests");
+    let i = 0;
     for (const g of CATALOG.filter(g => genre === "All" || g.genre === genre)) {
       const li = document.createElement("li");
       li.className = "game" + (g.status === "soon" ? " soon" : ""); li.dataset.genre = g.genre;
       const world = remote.games[g.id]?.top;
-      li.innerHTML = `<div class="strip"></div><div class="inner">
+      li.style.setProperty("--d", `${0.3 + i * 0.06}s`); li.classList.add("reveal"); i++;
+      li.innerHTML = `<div class="icon">${ICONS[g.id] || ICONS.default}</div><div class="inner">
         <h3>${g.title}</h3><p>${g.tagline}</p>
         <div class="row"><span>Your best <b>${bests[g.id]?.score?.toLocaleString() ?? "–"}</b>${API_BASE ? ` · World <b>${world ? world.score.toLocaleString() + " " + esc(world.name) : "–"}</b>` : ""}</span>
         <button>${g.status === "soon" ? "Coming soon" : "Play"}</button></div></div>`;
       if (g.status === "ready") li.querySelector("button").onclick = () => play(g);
+      tilt(li, 6);
       ul.appendChild(li);
     }
   }
@@ -184,6 +187,28 @@ $("themeBtn").onclick = () => {
     list.appendChild(b);
   }
   $("themeDialog").showModal();
+};
+
+// 3D tilt that follows the pointer
+function tilt(el, max = 8) {
+  el.addEventListener("pointermove", (e) => {
+    const r = el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
+    el.style.setProperty("--ry", `${x * max}deg`); el.style.setProperty("--rx", `${-y * max}deg`);
+  });
+  el.addEventListener("pointerleave", () => { el.style.removeProperty("--ry"); el.style.removeProperty("--rx"); });
+}
+tilt($("cabinet"), 10);
+
+// simple line icons per game, drawn in the genre colour
+const ICONS = {
+  pipedream: `<svg viewBox="0 0 40 40" fill="none" stroke="var(--genre)" stroke-width="4" stroke-linecap="round"><path d="M6 12h14a6 6 0 0 1 6 6v16"/><path d="M34 28H26"/><circle cx="6" cy="12" r="3" fill="var(--genre)"/></svg>`,
+  snake: `<svg viewBox="0 0 40 40" fill="none" stroke="var(--genre)" stroke-width="4" stroke-linecap="round"><path d="M8 30c0-6 4-8 8-8s8 2 8-4-4-6-8-6"/><circle cx="30" cy="12" r="3" fill="var(--genre)" stroke="none"/></svg>`,
+  breakout: `<svg viewBox="0 0 40 40" fill="var(--genre)"><rect x="6" y="6" width="8" height="5" rx="1"/><rect x="16" y="6" width="8" height="5" rx="1"/><rect x="26" y="6" width="8" height="5" rx="1"/><rect x="11" y="13" width="8" height="5" rx="1"/><rect x="21" y="13" width="8" height="5" rx="1"/><circle cx="20" cy="25" r="3"/><rect x="12" y="32" width="16" height="4" rx="2"/></svg>`,
+  stacker: `<svg viewBox="0 0 40 40" fill="var(--genre)"><rect x="6" y="26" width="8" height="8" rx="1"/><rect x="16" y="26" width="8" height="8" rx="1"/><rect x="26" y="26" width="8" height="8" rx="1"/><rect x="16" y="16" width="8" height="8" rx="1"/><rect x="26" y="16" width="8" height="8" rx="1"/><rect x="26" y="6" width="8" height="8" rx="1" opacity=".5"/></svg>`,
+  rocks: `<svg viewBox="0 0 40 40" fill="none" stroke="var(--genre)" stroke-width="3" stroke-linejoin="round"><path d="M20 6l8 16H12z" fill="var(--genre)"/><path d="M28 28l5-3 3 5-4 4-5-2z"/><path d="M6 28l4-4 4 3-2 5-5 0z"/></svg>`,
+  maze: `<svg viewBox="0 0 40 40" fill="none" stroke="var(--genre)" stroke-width="3"><path d="M6 6h28v28H6zM6 14h12M22 14h12M14 14v12M26 22h8M14 26h12"/><circle cx="10" cy="30" r="2.5" fill="var(--genre)" stroke="none"/></svg>`,
+  default: `<svg viewBox="0 0 40 40" fill="var(--genre)"><circle cx="20" cy="20" r="8"/></svg>`,
 };
 
 function setNet(on) { const s = $("netStatus"); s.textContent = on ? "online" : "offline"; s.classList.toggle("online", on); }

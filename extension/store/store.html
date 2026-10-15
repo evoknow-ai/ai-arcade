@@ -4,9 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Arcade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Space+Grotesk:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="store.css">
 </head>
 <body>
+<div class="sky" aria-hidden="true"><i></i><i></i><i></i></div>
 <header class="top">
   <a class="wordmark" href="#" id="home">AI<span>ARCADE</span></a>
   <nav class="top-right">
@@ -18,12 +21,12 @@
 
 <main id="storeView">
   <section class="hero">
-    <div class="cabinet">
+    <div class="cabinet reveal" id="cabinet">
       <div class="marquee" id="heroMarquee">Snake</div>
       <canvas id="attract" width="480" height="480"></canvas>
       <div class="bezel">attract mode</div>
     </div>
-    <div class="hero-copy">
+    <div class="hero-copy reveal" style="--d:.12s">
       <p class="kicker" id="heroKicker">Featured</p>
       <h1 id="heroTitle">Snake</h1>
       <p class="lead" id="heroTagline"></p>
@@ -43,7 +46,7 @@
     </div>
   </section>
 
-  <section class="shelf">
+  <section class="shelf reveal" style="--d:.25s">
     <div class="shelf-head">
       <h2>All games</h2>
       <div class="filters" id="filters"></div>
