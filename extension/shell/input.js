@@ -5,6 +5,7 @@ export class Input {
     this.listeners = [];
     this.target = target;
     this._onKeyDown = (e) => {
+      if (isTyping(e.target)) return; // never steal keys from a text field or dialog
       const action = KEYMAP[e.code];
       if (!action) return;
       e.preventDefault();
@@ -51,6 +52,12 @@ export class Input {
     this.target.removeEventListener("touchstart", this._onTouchStart);
     this.target.removeEventListener("touchend", this._onTouchEnd);
   }
+}
+
+function isTyping(el) {
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable || !!el.closest?.("dialog[open]");
 }
 
 const KEYMAP = {

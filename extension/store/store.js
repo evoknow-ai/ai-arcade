@@ -86,20 +86,22 @@ async function gameOver(result) {
   const isBest = await store.recordLocalBest(current.id, { score: result.score, level: result.level, ts: Date.now() });
   $("finalScore").textContent = result.score.toLocaleString(); $("finalLevel").textContent = result.level;
   $("finalNote").textContent = isBest ? "New personal best." : "";
-  $("finalName").value = identity.displayName;
   const dlg = $("overDialog");
+  const showNameField = (show) => { $("finalNameWrap").hidden = !show; $("savedAs").hidden = show; if (show) { $("finalName").value = identity.displayName; setTimeout(() => $("finalName").focus(), 0); } };
+  $("savedName").textContent = identity.displayName;
+  showNameField(!identity.displayName); // ask once; afterwards the name is remembered
+  $("changeName").onclick = () => showNameField(true);
   dlg.showModal();
   dlg.onclose = async () => {
     const v = dlg.returnValue;
-    if (v === "submit") {
+    if (!$("finalNameWrap").hidden) {
       const name = $("finalName").value.trim();
       if (name && name !== identity.displayName) { await store.setSync({ displayName: name }); identity.displayName = name; $("nameBtn").textContent = name; if (API_BASE) registerName(API_BASE, name); }
-      await store.addLocalScore(current.id, { name: identity.displayName || "Player", score: result.score, level: result.level, ts: Date.now(), playerId: identity.playerId });
-      if (API_BASE) { $("boardNote").textContent = "Submitting…"; await submitScore(API_BASE, { gameId: current.id, ...result }); }
-      await loadBoard();
     }
-    if (v === "again") play(current);
-    if (v === "store") backToStore();
+    // every finished run is saved, whichever button closed the dialog
+    await store.addLocalScore(current.id, { name: identity.displayName || "Player", score: result.score, level: result.level, ts: Date.now(), playerId: identity.playerId });
+    if (API_BASE) { $("boardNote").textContent = "Submitting…"; await submitScore(API_BASE, { gameId: current.id, ...result }); }
+    if (v === "again") play(current); else backToStore(); // Esc counts as back to store
   };
 }
 

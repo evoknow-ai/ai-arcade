@@ -113,3 +113,6 @@ dialog input { display: block; width: 100%; margin-top: 6px; padding: 10px 12px;
 
 #boardList li small { color: var(--paper-dim); font-size: 11px; margin-left: 6px; }
 [hidden] { display: none !important; }
+.saved-as { color: var(--paper-dim); margin: 0; }
+.saved-as b { color: var(--paper); }
+.link { background: none; border: 0; color: var(--cyan); padding: 0 4px; text-decoration: underline; }

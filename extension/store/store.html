@@ -81,12 +81,12 @@
   <p class="final">Score <b id="finalScore">0</b> · Level <b id="finalLevel">1</b></p>
   <p class="final-note" id="finalNote"></p>
   <form method="dialog" id="overForm">
-    <label>Name on the leaderboard
-      <input id="finalName" maxlength="12" minlength="2" pattern="[A-Za-z0-9 _.-]{2,12}" placeholder="Your name" required>
+    <label id="finalNameWrap">Name on the leaderboard
+      <input id="finalName" maxlength="12" minlength="2" pattern="[A-Za-z0-9 _.-]{2,12}" placeholder="Your name" autocomplete="off">
     </label>
+    <p class="saved-as" id="savedAs" hidden>Saved as <b id="savedName"></b> <button type="button" class="link" id="changeName">change</button></p>
     <div class="dialog-actions">
-      <button value="submit" class="play">Submit score</button>
-      <button value="again" class="ghost">Play again</button>
+      <button value="again" class="play" autofocus>Play again</button>
       <button value="store" class="ghost">Back to store</button>
     </div>
   </form>
