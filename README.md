@@ -71,7 +71,8 @@ Names are 2–12 chars, filtered for profanity. Score posts are rate limited per
 ## Roadmap
 
 - [x] Store page, GameShell (keyboard/touch/pointer/gamepad, audio, replay log), local leaderboard
-- [x] PipeDream — level timer, start-now bonus, time bombs, water/oil/gas, reservoirs, valves, AI hint
+- [x] PipeDream — level timer, start-now bonus, time bombs, water/oil/gas, reservoirs, valves, Magic Blocks, AI hint
+- [x] Themes (Aurora, Midnight, Sunset, Terminal) and Beginner / Intermediate / Advanced difficulty
 - [x] Snake with AI autopilot
 - [ ] Brick Break, Stacker, Rock Field, Maze Chase
 - [ ] Global leaderboard on eatsleepai.us (server already written; needs PipeDream replay port)

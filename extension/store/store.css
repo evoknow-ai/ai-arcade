@@ -1,18 +1,19 @@
 :root {
-  --ink: #1B1540;        /* cabinet body */
-  --ink-2: #2A2260;      /* raised surface */
-  --ink-3: #3A3078;      /* hover / border */
-  --paper: #F4EFE6;      /* text */
-  --paper-dim: #B9B3C9;
-  --marquee: #FFD447;    /* lit marquee yellow */
-  --coral: #FF5C8A;
-  --cyan: #4DE1F0;
+  /* Set at runtime by shell/theme.js; these are the Aurora defaults. */
+  --bg: #07111F; --bg-glow-1: #1D3F6E; --bg-glow-2: #3A1A5C;
+  --surface: #0F1F33; --surface-2: #183048; --surface-3: #234461;
+  --text: #F2F7FF; --text-dim: #9DB4CC;
+  --marquee: #FFCF4A; --accent: #FF5CA8; --cyan: #2CE6D6;
+  /* aliases used throughout */
+  --ink: var(--bg); --ink-2: var(--surface); --ink-3: var(--surface-2);
+  --paper: var(--text); --paper-dim: var(--text-dim); --coral: var(--accent);
   --display: "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed", "Helvetica Neue", sans-serif;
   --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--ink); color: var(--paper); font: 15px/1.5 var(--body); }
+html, body { margin: 0; color: var(--paper); font: 15px/1.5 var(--body); }
+body { min-height: 100vh; background: var(--bg) radial-gradient(1200px 600px at 10% -10%, var(--bg-glow-1), transparent 60%), var(--bg) radial-gradient(900px 500px at 100% 0%, var(--bg-glow-2), transparent 60%); background-color: var(--bg); background-attachment: fixed; }
 button { font: inherit; color: inherit; cursor: pointer; }
 :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 
@@ -29,8 +30,8 @@ main { padding: 32px; max-width: 1180px; margin: 0 auto; }
 
 /* Hero: one featured cabinet playing attract mode */
 .hero { display: grid; grid-template-columns: 420px 1fr; gap: 40px; align-items: center; }
-.cabinet { background: var(--ink-2); border-radius: 18px 18px 10px 10px; padding: 14px; box-shadow: 0 30px 60px -30px #000; }
-.marquee { font-family: var(--display); font-weight: 800; font-size: 34px; text-align: center; color: var(--ink); background: var(--marquee); border-radius: 8px; padding: 4px 0 6px; letter-spacing: 0.06em; text-shadow: 0 1px 0 #fff6; }
+.cabinet { background: linear-gradient(180deg, var(--surface-2), var(--surface)); border: 1px solid var(--surface-3); border-radius: 18px 18px 10px 10px; padding: 14px; box-shadow: 0 30px 60px -30px #000, 0 0 0 1px #ffffff08 inset; }
+.marquee { font-family: var(--display); font-weight: 800; font-size: 34px; text-align: center; color: var(--ink); background: linear-gradient(180deg, #fff8, transparent 40%), var(--marquee); box-shadow: 0 0 24px color-mix(in srgb, var(--marquee) 60%, transparent); border-radius: 8px; padding: 4px 0 6px; letter-spacing: 0.06em; text-shadow: 0 1px 0 #fff6; }
 #attract { display: block; width: 100%; height: auto; margin: 12px 0 0; border-radius: 6px; background: var(--ink); }
 .bezel { margin-top: 10px; font-size: 12px; color: var(--paper-dim); text-align: center; }
 .kicker { margin: 0 0 6px; color: var(--coral); font-weight: 600; }
@@ -38,8 +39,8 @@ main { padding: 32px; max-width: 1180px; margin: 0 auto; }
 .lead { font-size: 19px; max-width: 46ch; margin: 0 0 8px; }
 .meta { color: var(--paper-dim); max-width: 50ch; margin: 0 0 24px; }
 .hero-actions { display: flex; align-items: center; gap: 26px; }
-.play { background: var(--coral); color: var(--ink); border: 0; border-radius: 10px; padding: 12px 28px; font-family: var(--display); font-weight: 800; font-size: 20px; letter-spacing: 0.04em; }
-.play:hover { background: #ff7aa0; }
+.play { background: linear-gradient(180deg, #fff3, transparent 50%), var(--coral); box-shadow: 0 8px 24px -8px var(--coral); color: var(--ink); border: 0; border-radius: 10px; padding: 12px 28px; font-family: var(--display); font-weight: 800; font-size: 20px; letter-spacing: 0.04em; }
+.play:hover { filter: brightness(1.1); }
 .bests { display: flex; gap: 18px; color: var(--paper-dim); font-size: 14px; }
 .bests b { color: var(--paper); font-size: 18px; margin-left: 6px; font-family: var(--display); }
 
@@ -50,7 +51,7 @@ main { padding: 32px; max-width: 1180px; margin: 0 auto; }
 .filters button { background: none; border: 0; color: var(--paper-dim); padding: 4px 10px; border-radius: 999px; }
 .filters button.on { color: var(--ink); background: var(--marquee); }
 .games { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
-.game { display: grid; grid-template-columns: 8px 1fr; background: var(--ink-2); border-radius: 10px; overflow: hidden; }
+.game { display: grid; grid-template-columns: 8px 1fr; background: linear-gradient(180deg, var(--surface-2), var(--surface)); border: 1px solid var(--surface-3); border-radius: 10px; overflow: hidden; }
 .game .strip { background: var(--cyan); }
 .game[data-genre="Puzzle"] .strip { background: var(--marquee); }
 .game[data-genre="Shooter"] .strip { background: var(--coral); }
@@ -116,3 +117,18 @@ dialog input { display: block; width: 100%; margin-top: 6px; padding: 10px 12px;
 .saved-as { color: var(--paper-dim); margin: 0; }
 .saved-as b { color: var(--paper); }
 .link { background: none; border: 0; color: var(--cyan); padding: 0 4px; text-decoration: underline; }
+
+/* Difficulty + themes */
+.difficulty { display: inline-flex; background: var(--ink); border: 1px solid var(--ink-3); border-radius: 999px; padding: 2px; }
+.difficulty button { background: none; border: 0; border-radius: 999px; padding: 3px 10px; font-size: 12px; color: var(--paper-dim); }
+.difficulty button.on { background: var(--cyan); color: var(--ink); font-weight: 600; }
+.hero-difficulty { margin-left: 4px; }
+.hero-difficulty button { padding: 5px 12px; font-size: 13px; }
+.themes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 4px; }
+.theme { text-align: left; border: 2px solid transparent; border-radius: 12px; padding: 10px 12px; background: var(--t-surface); color: var(--t-text); cursor: pointer; }
+.theme.on { border-color: var(--cyan); }
+.theme b { display: block; font-family: var(--display); font-size: 18px; }
+.theme small { color: var(--t-dim); }
+.theme .sw { display: flex; gap: 4px; margin-top: 6px; }
+.theme .sw i { width: 18px; height: 18px; border-radius: 50%; display: block; }
+.hero-actions { flex-wrap: wrap; gap: 16px 26px; }

@@ -3,11 +3,15 @@ import { CATALOG } from "../games/catalog.js";
 import { GameShell } from "../shell/GameShell.js";
 import * as store from "../shell/storage.js";
 import { fetchLeaderboard, submitScore, registerName } from "../shell/leaderboard.js";
+import { THEMES, loadTheme, saveTheme, currentTheme } from "../shell/theme.js";
 
 const $ = (id) => document.getElementById(id);
 let remote = { games: {} };           // server metadata keyed by game id
 let shell = null, attractShell = null, current = null, period = "all";
 let identity = await store.getIdentity();
+await loadTheme();
+let difficulty = (await store.getSync("difficulty")).difficulty || "intermediate";
+const DIFF_LABEL = { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" };
 
 // ---------- Store view ----------
 async function renderStore() {
@@ -65,13 +69,14 @@ async function startAttract(game) {
 async function play(game) {
   attractShell?.destroy(); attractShell = null;
   current = game;
+  syncDifficultyUI();
   $("storeView").hidden = true; $("playView").hidden = false;
   $("playTitle").textContent = game.title; $("playControls").textContent = game.controls || "";
   loadBoard();
   const mod = await game.load();
   shell?.destroy();
   shell = new GameShell({
-    canvas: $("game"), game: mod.default(),
+    canvas: $("game"), game: mod.default({ difficulty }),
     onHud: ({ score, level, elapsed, extra }) => {
       $("hudScore").textContent = score.toLocaleString(); $("hudLevel").textContent = level;
       $("hudTime").textContent = fmt(elapsed); $("hudExtra").textContent = extra || "";
@@ -99,7 +104,7 @@ async function gameOver(result) {
       if (name && name !== identity.displayName) { await store.setSync({ displayName: name }); identity.displayName = name; $("nameBtn").textContent = name; if (API_BASE) registerName(API_BASE, name); }
     }
     // every finished run is saved, whichever button closed the dialog
-    await store.addLocalScore(current.id, { name: identity.displayName || "Player", score: result.score, level: result.level, ts: Date.now(), playerId: identity.playerId });
+    await store.addLocalScore(current.id, { name: identity.displayName || "Player", score: result.score, level: result.level, difficulty, ts: Date.now(), playerId: identity.playerId });
     if (API_BASE) { $("boardNote").textContent = "Submitting…"; await submitScore(API_BASE, { gameId: current.id, ...result }); }
     if (v === "again") play(current); else backToStore(); // Esc counts as back to store
   };
@@ -119,7 +124,7 @@ async function loadBoard() {
     if (!rows.length) { $("boardNote").textContent = "No runs yet. Your finished games show up here."; return; }
     for (const r of rows.slice(0, 50)) {
       const li = document.createElement("li");
-      li.innerHTML = `<span class="n">${esc(r.name)} <small>L${r.level}</small></span><span class="s">${r.score.toLocaleString()}</span>`;
+      li.innerHTML = `<span class="n">${esc(r.name)} <small>L${r.level}${r.difficulty ? " · " + DIFF_LABEL[r.difficulty][0] : ""}</small></span><span class="s">${r.score.toLocaleString()}</span>`;
       ol.appendChild(li);
     }
     $("boardNote").textContent = "Global leaderboard coming soon.";
@@ -156,6 +161,30 @@ $("nameBtn").onclick = () => { $("nameInput").value = identity.displayName; cons
   const name = $("nameInput").value.trim(); if (!name) return;
   await store.setSync({ displayName: name }); identity.displayName = name; $("nameBtn").textContent = name; if (API_BASE) registerName(API_BASE, name);
 }; };
+
+// difficulty controls (hero + HUD share state)
+function syncDifficultyUI() {
+  document.querySelectorAll(".difficulty button").forEach(b => b.classList.toggle("on", b.dataset.level === difficulty));
+}
+document.querySelectorAll(".difficulty button").forEach(b => b.onclick = async () => {
+  if (b.dataset.level === difficulty) return;
+  difficulty = b.dataset.level; await store.setSync({ difficulty }); syncDifficultyUI();
+  if (shell && current) play(current); // restart at the new difficulty
+});
+syncDifficultyUI();
+
+// theme picker
+$("themeBtn").onclick = () => {
+  const list = $("themeList"); list.innerHTML = "";
+  for (const [id, t] of Object.entries(THEMES)) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "theme" + (t === currentTheme() ? " on" : "");
+    b.style.setProperty("--t-surface", t.surface); b.style.setProperty("--t-text", t.text); b.style.setProperty("--t-dim", t.textDim);
+    b.innerHTML = `<b>${t.name}</b><small>${t.blurb}</small><span class="sw">${[t.bg, t.surface2, t.marquee, t.accent, t.cyan].map(c => `<i style="background:${c}"></i>`).join("")}</span>`;
+    b.onclick = async () => { await saveTheme(id); [...list.children].forEach(x => x.classList.toggle("on", x === b)); };
+    list.appendChild(b);
+  }
+  $("themeDialog").showModal();
+};
 
 function setNet(on) { const s = $("netStatus"); s.textContent = on ? "online" : "offline"; s.classList.toggle("online", on); }
 function fmt(ms) { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; }

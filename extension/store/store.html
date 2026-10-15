@@ -11,6 +11,7 @@
   <a class="wordmark" href="#" id="home">AI<span>ARCADE</span></a>
   <nav class="top-right">
     <span class="status" id="netStatus" title="Leaderboard server">offline</span>
+    <button class="name" id="themeBtn" title="Choose a color theme">Theme</button>
     <button class="name" id="nameBtn" title="Change your player name">Set your name</button>
   </nav>
 </header>
@@ -29,6 +30,11 @@
       <p class="meta" id="heroAi"></p>
       <div class="hero-actions">
         <button class="play" id="heroPlay">Play</button>
+        <div class="difficulty hero-difficulty" id="heroDifficulty">
+          <button data-level="beginner">Beginner</button>
+          <button data-level="intermediate">Intermediate</button>
+          <button data-level="advanced">Advanced</button>
+        </div>
         <div class="bests">
           <span>Your best <b id="heroLocalBest">–</b></span>
           <span id="heroWorld" hidden>World best <b id="heroWorldBest">–</b></span>
@@ -56,6 +62,11 @@
         <span class="hud-stat">Level <b id="hudLevel">1</b></span>
         <span class="hud-stat">Time <b id="hudTime">0:00</b></span>
         <span class="hud-extra" id="hudExtra"></span>
+        <div class="difficulty" id="difficulty" title="Difficulty — changing it restarts the game">
+          <button data-level="beginner">Beginner</button>
+          <button data-level="intermediate">Intermediate</button>
+          <button data-level="advanced">Advanced</button>
+        </div>
         <button id="pause" class="ghost">Pause</button>
       </div>
       <canvas id="game"></canvas>
@@ -90,6 +101,13 @@
       <button value="store" class="ghost">Back to store</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="themeDialog">
+  <h2>Theme</h2>
+  <p>Changes the store and every game instantly.</p>
+  <div class="themes" id="themeList"></div>
+  <form method="dialog"><div class="dialog-actions"><button value="close" class="ghost">Done</button></div></form>
 </dialog>
 
 <dialog id="nameDialog">

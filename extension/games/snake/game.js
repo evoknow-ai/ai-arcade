@@ -5,7 +5,10 @@ const COLS = 24, ROWS = 24, CELL = 20;
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 const OPP = { up: "down", down: "up", left: "right", right: "left" };
 
-export default function createSnake({ autopilot = false } = {}) {
+const DIFFICULTY = { beginner: { moveEvery: 13, min: 6 }, intermediate: { moveEvery: 9, min: 3 }, advanced: { moveEvery: 6, min: 2 } };
+
+export default function createSnake({ autopilot = false, difficulty = "intermediate" } = {}) {
+  const diff = DIFFICULTY[difficulty] || DIFFICULTY.intermediate;
   const g = {
     id: "snake",
     tps: 60,
@@ -15,7 +18,7 @@ export default function createSnake({ autopilot = false } = {}) {
       g.snake = [[12, 12], [11, 12], [10, 12]];
       g.dir = "right"; g.nextDir = "right";
       g.score = 0; g.level = 1; g.eaten = 0;
-      g.moveEvery = 9; g.acc = 0;
+      g.moveEvery = diff.moveEvery; g.acc = 0;
       g.golden = null; g.goldenTtl = 0;
       g.flash = 0;
       g.fruit = spawn(shell);
@@ -46,7 +49,7 @@ export default function createSnake({ autopilot = false } = {}) {
       } else if (head[0] === g.fruit[0] && head[1] === g.fruit[1]) {
         g.score += 10 * g.level; g.eaten++; shell.audio.eat();
         g.fruit = spawn(shell);
-        if (g.eaten % 5 === 0) { g.level++; g.moveEvery = Math.max(3, g.moveEvery - 1); shell.audio.levelUp(); }
+        if (g.eaten % 5 === 0) { g.level++; g.moveEvery = Math.max(diff.min, g.moveEvery - 1); shell.audio.levelUp(); }
         if (!g.golden && shell.rng.next() < 0.2) { g.golden = spawn(shell); g.goldenTtl = 60; }
       } else {
         g.snake.pop();
@@ -54,20 +57,20 @@ export default function createSnake({ autopilot = false } = {}) {
       if (g.golden && --g.goldenTtl <= 0) g.golden = null;
     },
     render(c, shell) {
-      const { w, h } = shell;
-      c.fillStyle = g.flash > 0 ? "#2A2260" : "#1B1540"; c.fillRect(0, 0, w, h);
+      const { w, h } = shell, T = shell.theme;
+      c.fillStyle = g.flash > 0 ? T.surface2 : T.board1; c.fillRect(0, 0, w, h);
       c.strokeStyle = "rgba(255,255,255,0.05)"; c.lineWidth = 1;
       for (let x = 0; x <= COLS; x++) { c.beginPath(); c.moveTo(x * CELL, 0); c.lineTo(x * CELL, h); c.stroke(); }
       for (let y = 0; y <= ROWS; y++) { c.beginPath(); c.moveTo(0, y * CELL); c.lineTo(w, y * CELL); c.stroke(); }
-      drawCell(c, g.fruit, "#FF5C8A", 5);
-      if (g.golden) { drawCell(c, g.golden, "#FFD447", 6); }
+      drawCell(c, g.fruit, T.accent, 5);
+      if (g.golden) { drawCell(c, g.golden, T.marquee, 6); }
       g.snake.forEach(([x, y], i) => {
         const t = i / g.snake.length;
-        c.fillStyle = i === 0 ? "#4DE1F0" : `hsl(${186 - t * 40} 80% ${62 - t * 25}%)`;
+        c.fillStyle = i === 0 ? T.cyan : mix(T.cyan, T.pipeDark, Math.min(1, t * 1.2));
         rr(c, x * CELL + 1.5, y * CELL + 1.5, CELL - 3, CELL - 3, i === 0 ? 6 : 4); c.fill();
       });
       const [hx, hy] = g.snake[0]; const [dx, dy] = DIRS[g.dir];
-      c.fillStyle = "#1B1540";
+      c.fillStyle = T.bg;
       c.beginPath(); c.arc(hx * CELL + 10 + dx * 4 + dy * 4, hy * CELL + 10 + dy * 4 - dx * 4, 2, 0, 7); c.fill();
       c.beginPath(); c.arc(hx * CELL + 10 + dx * 4 - dy * 4, hy * CELL + 10 + dy * 4 + dx * 4, 2, 0, 7); c.fill();
     },
@@ -75,6 +78,10 @@ export default function createSnake({ autopilot = false } = {}) {
   return g;
 }
 
+function mix(a, b, t) { // hex colour blend
+  const pa = [1, 3, 5].map(i => parseInt(a.slice(i, i + 2), 16)), pb = [1, 3, 5].map(i => parseInt(b.slice(i, i + 2), 16));
+  return "#" + pa.map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, "0")).join("");
+}
 function spawn(shell) {
   // deterministic: keep trying free cells using shell.rng
   for (;;) {

@@ -2,6 +2,7 @@
 // a deterministic RNG, an input log (for server replay verification) and a submitScore hook.
 import { Input } from "./input.js";
 import { Audio } from "./audio.js";
+import { currentTheme } from "./theme.js";
 
 export class RNG {
   constructor(seed) { this.s = seed >>> 0 || 1; }
@@ -54,6 +55,7 @@ export class GameShell {
     window.addEventListener("resize", this._resize);
     this.resize();
   }
+  get theme() { return currentTheme(); } // live, so a theme switch applies on the next frame
   resize() {
     const { width: w, height: h } = this.game.size || { width: 480, height: 480 };
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -89,10 +91,10 @@ export class GameShell {
   drawOverlay(title, sub) {
     const c = this.ctx;
     c.save();
-    c.fillStyle = "rgba(10,8,30,0.72)"; c.fillRect(0, 0, this.w, this.h);
-    c.fillStyle = "#FFD447"; c.textAlign = "center"; c.font = "700 36px 'Avenir Next Condensed','Arial Narrow',sans-serif";
+    c.fillStyle = "rgba(0,0,0,0.6)"; c.fillRect(0, 0, this.w, this.h);
+    c.fillStyle = this.theme.marquee; c.textAlign = "center"; c.font = "700 36px 'Avenir Next Condensed','Arial Narrow',sans-serif";
     c.fillText(title, this.w / 2, this.h / 2 - 8);
-    c.fillStyle = "#F4EFE6"; c.font = "16px system-ui,sans-serif";
+    c.fillStyle = "#FFFFFF"; c.font = "16px system-ui,sans-serif";
     if (sub) c.fillText(sub, this.w / 2, this.h / 2 + 24);
     c.restore();
   }
