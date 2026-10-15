@@ -6,7 +6,7 @@ export const CATALOG = [
     title: "PipeDream",
     genre: "Puzzle",
     tagline: "Lay pipe ahead of the flow. Water, oil and gas each break the rules differently.",
-    controls: "Click or tap a cell to place the next piece. Space starts the flow early for a bonus. H toggles the AI hint. Magic Blocks (★) route the flow into any connected pipe.",
+    controls: "Click or tap a cell to place the next piece. Space starts the flow early for a bonus. H toggles the AI hint. Magic Blocks (★) route the flow into any connected pipe. Timer Blocks hold the fluid for 5–30 s, then let it through.",
     ai: "Hint mode highlights where the next piece keeps the flow alive longest.",
     load: () => import("./pipedream/game.js"),
     status: "ready",

@@ -15,15 +15,16 @@ const OPP = [D, L, U, R];
 const SHAPES = {
   h: [L, R], v: [U, D], ne: [U, R], nw: [U, L], se: [D, R], sw: [D, L], x: [U, R, D, L],
   valve_h: [L, R], valve_v: [U, D], res_h: [L, R], res_v: [U, D],
+  timer: [U, R, D, L], // Timer Block: passes straight through, but holds the fluid for 5–30 s first
   magic: [U, R, D, L], // Magic Block: accepts from any side, then routes itself toward a connected pipe at random
 };
 
 // Difficulty shapes the whole run: flow speed, countdown, how early bombs/rocks appear, target size,
 // how often a Magic Block shows up in the queue.
 const DIFFICULTY = {
-  beginner:     { name: "Beginner",     speed: 0.55, countdown: 8,  levelTime: 120, bombsFrom: 4, rocks: 0.5, target: 6, magic: 0.14, queue: 5 },
-  intermediate: { name: "Intermediate", speed: 1.0,  countdown: 0,  levelTime: 95,  bombsFrom: 2, rocks: 1.0, target: 8, magic: 0.08, queue: 5 },
-  advanced:     { name: "Advanced",     speed: 1.6,  countdown: -4, levelTime: 75,  bombsFrom: 1, rocks: 1.6, target: 10, magic: 0.05, queue: 4 },
+  beginner:     { name: "Beginner",     speed: 0.55, countdown: 8,  levelTime: 120, bombsFrom: 4, rocks: 0.5, target: 6, magic: 0.14, timer: 0.08, queue: 5 },
+  intermediate: { name: "Intermediate", speed: 1.0,  countdown: 0,  levelTime: 95,  bombsFrom: 2, rocks: 1.0, target: 8, magic: 0.08, timer: 0.06, queue: 5 },
+  advanced:     { name: "Advanced",     speed: 1.6,  countdown: -4, levelTime: 75,  bombsFrom: 1, rocks: 1.6, target: 10, magic: 0.05, timer: 0.05, queue: 4 },
 };
 const QUEUE_POOL = ["h", "v", "ne", "nw", "se", "sw", "x", "h", "v", "ne", "nw", "se", "sw"];
 
@@ -84,7 +85,18 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
     say(`Level ${lvl} · ${fluid.name} · fill ${target} pipes`, 180);
   }
 
-  function drawPiece(shell) { return shell.rng.next() < diff.magic ? "magic" : QUEUE_POOL[shell.rng.int(QUEUE_POOL.length)]; }
+  const HOLDS = [5, 10, 15, 20, 30];
+  // queue entries are shape strings; a timer piece is "timer:<seconds>"
+  function drawPiece(shell) {
+    const r = shell.rng.next();
+    if (r < diff.magic) return "magic";
+    if (r < diff.magic + diff.timer) return "timer:" + HOLDS[shell.rng.int(HOLDS.length)];
+    return QUEUE_POOL[shell.rng.int(QUEUE_POOL.length)];
+  }
+  function tileFromPiece(piece) {
+    if (piece.startsWith("timer:")) { const secs = +piece.slice(6); return { kind: "pipe", shape: "timer", hold: secs, holdLeft: secs * 60, fill: 0, fillA: 0, fillB: 0 }; }
+    return { kind: "pipe", shape: piece, fill: 0, fillA: 0, fillB: 0 };
+  }
   function placeRandom(shell, tile) {
     for (let tries = 0; tries < 200; tries++) {
       const x = shell.rng.int(COLS), y = shell.rng.int(ROWS);
@@ -126,9 +138,9 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
     if (t && (t.kind !== "pipe" || t.fixed || t.fill > 0 || (t.fillA || 0) > 0 || (t.fillB || 0) > 0)) { shell.audio.hit(); return; }
     if (t === flow.cell) { shell.audio.hit(); return; }
     if (t) { g.score = Math.max(0, g.score - 50); say("Replaced a pipe −50", 45); }
-    const shape = queue.shift();
+    const piece = queue.shift();
     queue.push(drawPiece(shell));
-    board[y][x] = { kind: "pipe", shape, fill: 0, fillA: 0, fillB: 0 };
+    board[y][x] = tileFromPiece(piece);
     shell.audio.blip();
   }
 
@@ -155,6 +167,14 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
     }
     if (levelTime > 0) { levelTime--; if (levelTime === 0) { say("Time's up — pressure rising", 120); flow.segTicks = segTicksFor(); } }
 
+    // Timer Block: fill to the center, then hold until the timer runs out
+    const cell = flow.cell;
+    if (cell.shape === "timer" && cell.holdLeft > 0 && flow.progress >= Math.floor(flow.segTicks / 2)) {
+      cell.holdLeft--;
+      if (cell.holdLeft === 0) { g.score += cell.hold * 10; say(`Timer released +${cell.hold * 10}`, 60); shell.audio.levelUp(); }
+      else if (cell.holdLeft % 60 === 0) shell.audio.tone({ freq: 700, type: "triangle", dur: 0.04, vol: 0.06 });
+      flow.progress = Math.floor(flow.segTicks / 2); updateFill(); return;
+    }
     flow.progress++;
     if (flow.progress < flow.segTicks) { updateFill(); return; }
 
@@ -178,7 +198,24 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
         exit = OPP[entry];
         if ((horiz && t.fillB >= 1) || (!horiz && t.fillA >= 1)) { g.score += 100; say("Double cross +100", 45); }
         if (horiz) t.inA = entry; else t.inB = entry;
-      } else if (t.shape === "magic") {
+      } else if (t.shape === "timer") {
+        if (t.fill >= 1) return flowEnds(shell, "spilled");
+        exit = OPP[entry]; t.in = entry; t.out = exit;
+        say(`Timer block: holding for ${t.hold}s`, 90);
+      } else if (t.shape === "timer") {
+      c.beginPath(); for (const d of open) { c.moveTo(cx, cy); c.lineTo(cx + DX[d] * half, cy + DY[d] * half); } c.stroke();
+      if (t.fill && t.in != null) fillSeg(c, cx, cy, half, t.in, t.out, t.fill);
+      // the clock: a dial that drains as it holds the fluid
+      const r = size * 0.3, frac = t.holdLeft / (t.hold * 60);
+      c.fillStyle = T.surface; c.beginPath(); c.arc(cx, cy, r, 0, 7); c.fill();
+      c.strokeStyle = T.pipeDark; c.lineWidth = 2; c.stroke();
+      c.strokeStyle = t.holdLeft > 0 ? T.marquee : fc(); c.lineWidth = size * 0.07;
+      c.beginPath(); c.arc(cx, cy, r - size * 0.06, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (t.holdLeft > 0 ? frac : 1)); c.stroke();
+      const holding = t === flow.cell && t.holdLeft > 0 && t.fill >= 0.5;
+      if (holding) { const pulse = 0.5 + 0.5 * Math.sin((shell?.tick || 0) / 4); c.globalAlpha = 0.35 * pulse; c.fillStyle = T.marquee; c.beginPath(); c.arc(cx, cy, r + 3, 0, 7); c.fill(); c.globalAlpha = 1; }
+      c.fillStyle = T.text; c.font = `800 ${Math.round(size * 0.24)}px system-ui,sans-serif`; c.textAlign = "center"; c.textBaseline = "middle";
+      c.fillText(t.holdLeft > 0 ? String(Math.ceil(t.holdLeft / 60)) : "✓", cx, cy + 1);
+    } else if (t.shape === "magic") {
         if (t.fill >= 1) return flowEnds(shell, "spilled");
         exit = magicRoute(nx, ny, entry, shell);
         t.in = entry; t.out = exit;
@@ -273,15 +310,17 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
       const deadThrough = replaceable && SHAPES[t.shape].includes(entry) && !exitOk(nx, ny, t.shape === "x" ? OPP[entry] : (SHAPES[t.shape][0] === entry ? SHAPES[t.shape][1] : SHAPES[t.shape][0]));
       if (!t || (replaceable && (!SHAPES[t.shape].includes(entry) || deadThrough))) {
         // candidate cell: does the next piece accept the entry?
-        if (!SHAPES[next].includes(entry)) return null;
-        const open = SHAPES[next];
-        const exit = next === "x" ? OPP[entry] : (open[0] === entry ? open[1] : open[0]);
+        const nshape = next.startsWith("timer:") ? "timer" : next;
+        if (!SHAPES[nshape].includes(entry)) return null;
+        const open = SHAPES[nshape];
+        const exit = (nshape === "x" || nshape === "timer") ? OPP[entry] : nshape === "magic" ? OPP[entry] : (open[0] === entry ? open[1] : open[0]);
         if (!exitOk(nx, ny, exit)) return null; // would spill straight away — better to dump this piece
         return { x: nx, y: ny, score: freeRun(nx, ny, exit) };
       }
       if (t.kind === "rock" || t.kind === "source") return null;
       if (t.kind === "bomb") { x = nx; y = ny; continue; }
       if (t.shape === "magic") { if (t.fill >= 1 && t.out != null) { dir = t.out; x = nx; y = ny; continue; } return null; }
+      if (t.shape === "timer") { x = nx; y = ny; continue; }
       const open = SHAPES[t.shape];
       if (!open.includes(entry)) return null;
       dir = t.shape === "x" ? OPP[entry] : (open[0] === entry ? open[1] : open[0]);
@@ -351,7 +390,7 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
     for (let i = 0; i < visible; i++) {
       const qx = QUEUE_W / 2 - CELL / 2 + 2, qy = TOP + 22 + i * (CELL + 2);
       if (i === 0) { c.fillStyle = T.surface3; rr(c, qx - 2, qy - 2, CELL, CELL, 6); c.fill(); }
-      drawPipe(c, qx, qy, { kind: "pipe", shape: queue[i], fill: 0, fillA: 0, fillB: 0 }, CELL - 4, shell);
+      drawPipe(c, qx, qy, tileFromPiece(queue[i]), CELL - 4, shell);
     }
 
     // board
@@ -375,7 +414,7 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
       const t = board[hover.y][hover.x];
       const can = !t || (t.kind === "pipe" && !t.fixed && t.fill === 0 && !t.fillA && !t.fillB && t !== flow.cell);
       const px = QUEUE_W + hover.x * CELL, py = TOP + hover.y * CELL;
-      c.globalAlpha = 0.45; if (can) drawPipe(c, px, py, { kind: "pipe", shape: queue[0], fill: 0, fillA: 0, fillB: 0 }, CELL, shell); c.globalAlpha = 1;
+      c.globalAlpha = 0.45; if (can) drawPipe(c, px, py, tileFromPiece(queue[0]), CELL, shell); c.globalAlpha = 1;
       c.strokeStyle = can ? T.text : T.accent; c.lineWidth = 2; c.strokeRect(px + 1, py + 1, CELL - 2, CELL - 2);
     }
     // hint
@@ -434,6 +473,19 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
       c.strokeStyle = wall; c.lineWidth = size * 0.32; c.beginPath(); c.moveTo(cx, py); c.lineTo(cx, py + size); c.stroke();
       if (t.fillA) fillSeg(c, cx, cy, half, t.inA ?? L, OPP[t.inA ?? L], t.fillA);
       if (t.fillB) fillSeg(c, cx, cy, half, t.inB ?? U, OPP[t.inB ?? U], t.fillB);
+    } else if (t.shape === "timer") {
+      c.beginPath(); for (const d of open) { c.moveTo(cx, cy); c.lineTo(cx + DX[d] * half, cy + DY[d] * half); } c.stroke();
+      if (t.fill && t.in != null) fillSeg(c, cx, cy, half, t.in, t.out, t.fill);
+      // the clock: a dial that drains as it holds the fluid
+      const r = size * 0.3, frac = t.holdLeft / (t.hold * 60);
+      c.fillStyle = T.surface; c.beginPath(); c.arc(cx, cy, r, 0, 7); c.fill();
+      c.strokeStyle = T.pipeDark; c.lineWidth = 2; c.stroke();
+      c.strokeStyle = t.holdLeft > 0 ? T.marquee : fc(); c.lineWidth = size * 0.07;
+      c.beginPath(); c.arc(cx, cy, r - size * 0.06, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (t.holdLeft > 0 ? frac : 1)); c.stroke();
+      const holding = t === flow.cell && t.holdLeft > 0 && t.fill >= 0.5;
+      if (holding) { const pulse = 0.5 + 0.5 * Math.sin((shell?.tick || 0) / 4); c.globalAlpha = 0.35 * pulse; c.fillStyle = T.marquee; c.beginPath(); c.arc(cx, cy, r + 3, 0, 7); c.fill(); c.globalAlpha = 1; }
+      c.fillStyle = T.text; c.font = `800 ${Math.round(size * 0.24)}px system-ui,sans-serif`; c.textAlign = "center"; c.textBaseline = "middle";
+      c.fillText(t.holdLeft > 0 ? String(Math.ceil(t.holdLeft / 60)) : "✓", cx, cy + 1);
     } else if (t.shape === "magic") {
       // four-way junction with a glowing core; once routed it shows only entry → exit
       c.strokeStyle = wall; c.lineWidth = size * 0.32;
