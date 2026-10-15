@@ -23,7 +23,7 @@ export class GameShell {
     this.onHud = onHud || (() => {});
     this.seed = seed ?? (Date.now() >>> 0);
     this.rng = new RNG(this.seed);
-    this.input = new Input(canvas);
+    this.input = new Input(canvas, { tapAction: !game.onPointer });
     this.audio = new Audio();
     this.paused = false;
     this.ended = false;
@@ -38,6 +38,18 @@ export class GameShell {
       this.log.push(this.tick, ACTION_CODE[action] ?? 0);
       this.game.onInput?.(action, this);
     });
+    // Pointer support for click/tap games (PipeDream etc). Games implement onPointer(x, y, shell)
+    // in game-space coordinates and onHover(x, y) for previews. Clicks are logged via shell.record().
+    this._toGame = (e) => {
+      const r = this.canvas.getBoundingClientRect();
+      return { x: (e.clientX - r.left) * (this.w / r.width), y: (e.clientY - r.top) * (this.h / r.height) };
+    };
+    this._onClick = (e) => { if (this.paused || this.ended || !this.game.onPointer) return; const p = this._toGame(e); this.game.onPointer(p.x, p.y, this); };
+    this._onMove = (e) => { if (!this.game.onHover) return; const p = this._toGame(e); this.game.onHover(p.x, p.y, this); };
+    this._onLeave = () => this.game.onHover?.(-1, -1, this);
+    canvas.addEventListener("click", this._onClick);
+    canvas.addEventListener("pointermove", this._onMove);
+    canvas.addEventListener("pointerleave", this._onLeave);
     this._resize = () => this.resize();
     window.addEventListener("resize", this._resize);
     this.resize();
@@ -71,6 +83,8 @@ export class GameShell {
     this.onHud({ score: this.game.score ?? 0, level: this.game.level ?? 1, elapsed: this.elapsed, extra: this.game.hud?.() });
     this.raf = requestAnimationFrame((t) => this.frame(t));
   }
+  // Games call this to put a game-specific event (e.g. a cell click) into the replay log.
+  record(code) { this.log.push(this.tick, code); }
   togglePause() { if (!this.ended) this.paused = !this.paused; }
   drawOverlay(title, sub) {
     const c = this.ctx;
@@ -89,7 +103,10 @@ export class GameShell {
     this.audio.gameOver();
     this.onEnd({ score: this.game.score ?? 0, level: this.game.level ?? 1, durationMs: Math.round(this.elapsed), log: { seed: this.seed, events: this.log, ticks: this.tick } });
   }
-  destroy() { cancelAnimationFrame(this.raf); this.input.destroy(); window.removeEventListener("resize", this._resize); }
+  destroy() {
+    cancelAnimationFrame(this.raf); this.input.destroy(); window.removeEventListener("resize", this._resize);
+    this.canvas.removeEventListener("click", this._onClick); this.canvas.removeEventListener("pointermove", this._onMove); this.canvas.removeEventListener("pointerleave", this._onLeave);
+  }
 }
 
-export const ACTION_CODE = { up: 1, down: 2, left: 3, right: 4, action: 5 };
+export const ACTION_CODE = { up: 1, down: 2, left: 3, right: 4, action: 5, hint: 6 };

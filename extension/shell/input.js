@@ -1,6 +1,6 @@
 // Unified keyboard / touch (swipe) / gamepad input. Emits abstract actions.
 export class Input {
-  constructor(target) {
+  constructor(target, { tapAction = true } = {}) {
     this.keys = new Set();
     this.listeners = [];
     this.target = target;
@@ -21,7 +21,7 @@ export class Input {
       if (!start) return;
       const t = e.changedTouches[0];
       const dx = t.clientX - start.x, dy = t.clientY - start.y;
-      if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) { this.emit("action"); start = null; return; }
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) { if (tapAction) this.emit("action"); start = null; return; }
       this.emit(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
       start = null;
     };
@@ -56,5 +56,5 @@ export class Input {
 const KEYMAP = {
   ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
   KeyW: "up", KeyS: "down", KeyA: "left", KeyD: "right",
-  Space: "action", Enter: "action", KeyP: "pause", Escape: "pause",
+  Space: "action", Enter: "action", KeyP: "pause", Escape: "pause", KeyH: "hint",
 };

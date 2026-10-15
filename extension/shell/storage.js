@@ -51,3 +51,18 @@ export async function recordLocalBest(gameId, entry) {
   }
   return false;
 }
+
+// Local leaderboard: every finished run, best 100 per game.
+export async function addLocalScore(gameId, entry) {
+  const { history = {} } = await get("history");
+  const list = history[gameId] || [];
+  list.push(entry);
+  list.sort((a, b) => b.score - a.score || a.ts - b.ts);
+  history[gameId] = list.slice(0, 100);
+  await set({ history });
+}
+export async function localScores(gameId, period = "all") {
+  const { history = {} } = await get("history");
+  const since = period === "daily" ? Date.now() - 864e5 : period === "weekly" ? Date.now() - 7 * 864e5 : 0;
+  return (history[gameId] || []).filter(e => e.ts >= since);
+}

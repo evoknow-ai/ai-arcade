@@ -110,3 +110,6 @@ dialog input { display: block; width: 100%; margin-top: 6px; padding: 10px 12px;
   .top { padding: 14px 18px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+#boardList li small { color: var(--paper-dim); font-size: 11px; margin-left: 6px; }
+[hidden] { display: none !important; }

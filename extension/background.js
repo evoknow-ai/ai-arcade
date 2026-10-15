@@ -24,13 +24,13 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name !== "sync") return;
+  if (alarm.name !== "sync" || !API_BASE) return;
   await flushScoreQueue(API_BASE);
   await refreshLeaderboards(API_BASE);
 });
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.type === "flush-scores") {
+  if (msg?.type === "flush-scores" && API_BASE) {
     flushScoreQueue(API_BASE).then(() => sendResponse({ ok: true }));
     return true;
   }

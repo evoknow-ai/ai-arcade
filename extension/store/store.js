@@ -11,7 +11,7 @@ let identity = await store.getIdentity();
 
 // ---------- Store view ----------
 async function renderStore() {
-  const featuredId = remote.featured || "snake";
+  const featuredId = remote.featured || "pipedream";
   const featured = CATALOG.find(g => g.id === featuredId && g.status === "ready") || CATALOG.find(g => g.status === "ready");
   $("heroTitle").textContent = featured.title;
   $("heroMarquee").textContent = featured.title;
@@ -20,6 +20,7 @@ async function renderStore() {
   $("heroKicker").textContent = remote.featured ? "Featured this week" : "Featured";
   const best = await store.localBest(featured.id);
   $("heroLocalBest").textContent = best ? best.score.toLocaleString() : "–";
+  $("heroWorld").hidden = !API_BASE;
   $("heroWorldBest").textContent = remote.games[featured.id]?.top?.score?.toLocaleString() || "–";
   $("heroPlay").onclick = () => play(featured);
   startAttract(featured);
@@ -43,7 +44,7 @@ async function renderStore() {
       const world = remote.games[g.id]?.top;
       li.innerHTML = `<div class="strip"></div><div class="inner">
         <h3>${g.title}</h3><p>${g.tagline}</p>
-        <div class="row"><span>You <b>${bests[g.id]?.score?.toLocaleString() ?? "–"}</b> · World <b>${world ? world.score.toLocaleString() + " " + esc(world.name) : "–"}</b></span>
+        <div class="row"><span>Your best <b>${bests[g.id]?.score?.toLocaleString() ?? "–"}</b>${API_BASE ? ` · World <b>${world ? world.score.toLocaleString() + " " + esc(world.name) : "–"}</b>` : ""}</span>
         <button>${g.status === "soon" ? "Coming soon" : "Play"}</button></div></div>`;
       if (g.status === "ready") li.querySelector("button").onclick = () => play(g);
       ul.appendChild(li);
@@ -92,9 +93,9 @@ async function gameOver(result) {
     const v = dlg.returnValue;
     if (v === "submit") {
       const name = $("finalName").value.trim();
-      if (name && name !== identity.displayName) { await store.setSync({ displayName: name }); identity.displayName = name; $("nameBtn").textContent = name; registerName(API_BASE, name); }
-      $("boardNote").textContent = "Submitting…";
-      await submitScore(API_BASE, { gameId: current.id, ...result });
+      if (name && name !== identity.displayName) { await store.setSync({ displayName: name }); identity.displayName = name; $("nameBtn").textContent = name; if (API_BASE) registerName(API_BASE, name); }
+      await store.addLocalScore(current.id, { name: identity.displayName || "Player", score: result.score, level: result.level, ts: Date.now(), playerId: identity.playerId });
+      if (API_BASE) { $("boardNote").textContent = "Submitting…"; await submitScore(API_BASE, { gameId: current.id, ...result }); }
       await loadBoard();
     }
     if (v === "again") play(current);
@@ -110,6 +111,18 @@ function backToStore() {
 
 async function loadBoard() {
   const ol = $("boardList"); ol.innerHTML = "";
+  if (!API_BASE) { // local-only mode
+    const rows = await store.localScores(current.id, period);
+    $("boardTitle").textContent = "Your scores";
+    if (!rows.length) { $("boardNote").textContent = "No runs yet. Your finished games show up here."; return; }
+    for (const r of rows.slice(0, 50)) {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="n">${esc(r.name)} <small>L${r.level}</small></span><span class="s">${r.score.toLocaleString()}</span>`;
+      ol.appendChild(li);
+    }
+    $("boardNote").textContent = "Global leaderboard coming soon.";
+    return;
+  }
   try {
     const rows = await fetchLeaderboard(API_BASE, current.id, period);
     setNet(true);
@@ -139,7 +152,7 @@ $("nameBtn").textContent = identity.displayName || "Set your name";
 $("nameBtn").onclick = () => { $("nameInput").value = identity.displayName; const d = $("nameDialog"); d.showModal(); d.onclose = async () => {
   if (d.returnValue !== "save") return;
   const name = $("nameInput").value.trim(); if (!name) return;
-  await store.setSync({ displayName: name }); identity.displayName = name; $("nameBtn").textContent = name; registerName(API_BASE, name);
+  await store.setSync({ displayName: name }); identity.displayName = name; $("nameBtn").textContent = name; if (API_BASE) registerName(API_BASE, name);
 }; };
 
 function setNet(on) { const s = $("netStatus"); s.textContent = on ? "online" : "offline"; s.classList.toggle("online", on); }
@@ -147,6 +160,7 @@ function fmt(ms) { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)
 function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
 async function loadRemote() {
+  if (!API_BASE) { $("netStatus").hidden = true; return; }
   const { remoteCatalog, remoteCatalogAt } = await store.get(["remoteCatalog", "remoteCatalogAt"]);
   if (remoteCatalog) remote = remoteCatalog;
   if (!remoteCatalogAt || Date.now() - remoteCatalogAt > CATALOG_REFRESH_MINUTES * 60000) {

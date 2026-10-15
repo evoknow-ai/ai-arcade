@@ -15,6 +15,13 @@ extension/            the Chrome extension — load this folder unpacked
 server/               Go + SQLite leaderboard API
 ```
 
+## Current phase: local-first
+
+`API_BASE` in `extension/config.js` is empty, so the extension runs fully local: every finished run is
+stored in `chrome.storage.local` and the in-game leaderboard panel shows your own scores (today / week /
+all time). The Go server in `server/` is ready for the global leaderboard phase — set `API_BASE` to
+`https://eatsleepai.us/arcade/api` to switch it on.
+
 ## Run the extension
 
 1. `chrome://extensions` → Developer mode → Load unpacked → pick `extension/`.
@@ -63,9 +70,10 @@ Names are 2–12 chars, filtered for profanity. Score posts are rate limited per
 
 ## Roadmap
 
-- [x] Store page, GameShell, Snake with AI autopilot, local bests
-- [x] Leaderboard server with replay verification
-- [ ] PipeDream (timer, time bombs, water/oil/gas)
+- [x] Store page, GameShell (keyboard/touch/pointer/gamepad, audio, replay log), local leaderboard
+- [x] PipeDream — level timer, start-now bonus, time bombs, water/oil/gas, reservoirs, valves, AI hint
+- [x] Snake with AI autopilot
 - [ ] Brick Break, Stacker, Rock Field, Maze Chase
+- [ ] Global leaderboard on eatsleepai.us (server already written; needs PipeDream replay port)
 - [ ] Ghost replay of the #1 run
 - [ ] Chrome Web Store listing

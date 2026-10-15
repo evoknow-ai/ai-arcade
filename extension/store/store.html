@@ -31,7 +31,7 @@
         <button class="play" id="heroPlay">Play</button>
         <div class="bests">
           <span>Your best <b id="heroLocalBest">–</b></span>
-          <span>World best <b id="heroWorldBest">–</b></span>
+          <span id="heroWorld" hidden>World best <b id="heroWorldBest">–</b></span>
         </div>
       </div>
     </div>
@@ -63,7 +63,7 @@
     </div>
     <aside class="board">
       <div class="board-head">
-        <h3>Leaderboard</h3>
+        <h3 id="boardTitle">Leaderboard</h3>
         <div class="periods">
           <button data-period="daily">Today</button>
           <button data-period="weekly">Week</button>
