@@ -1,0 +1,71 @@
+# AI Arcade
+
+A Chrome extension (Manifest V3) that is a store of classic arcade games with AI opponents,
+plus a self-hosted Go leaderboard server. By EVOKNOW.
+
+```
+extension/            the Chrome extension — load this folder unpacked
+  manifest.json
+  config.js           API_BASE: point this at your server
+  background.js       opens the store tab, queues/flushes scores, refreshes catalog
+  store/              the store page (game list, attract mode, play view, leaderboard)
+  shell/              GameShell runtime: loop, input, audio, RNG, replay log, storage
+  games/catalog.js    the list of games shipped with the extension
+  games/<id>/game.js  one module per game
+server/               Go + SQLite leaderboard API
+```
+
+## Run the extension
+
+1. `chrome://extensions` → Developer mode → Load unpacked → pick `extension/`.
+2. Click the toolbar icon. The store opens in its own tab.
+3. Without a server it still works: scores save locally and queue for later.
+
+## Run the server
+
+```
+cd server
+go mod tidy
+go build -o arcade-server .
+./arcade-server -addr :8080 -db arcade.db -featured snake
+```
+
+or `docker build -t arcade-server . && docker run -p 8080:8080 -v arcade-data:/data arcade-server`.
+
+Put it behind nginx with TLS (see `nginx.conf.example`) and set `API_BASE` in `extension/config.js`
+and `host_permissions` in `manifest.json` to that host.
+
+### API
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/catalog` | featured game id, top score + play count per game |
+| GET | `/api/leaderboard/{game}?period=daily\|weekly\|all` | top 50, best score per player |
+| POST | `/api/players` | `{playerId, name, secret}` — HMAC signed |
+| POST | `/api/scores` | score + replay log — HMAC signed |
+
+### Anti-cheat
+
+Every install gets a random player id + secret. Requests are HMAC-SHA256 signed; the first
+signed request registers the pair (trust on first use). Each game records a compact input log
+(`[tick, action, tick, action, …]`) plus the RNG seed. For games with a Go port of their rules
+(currently Snake, `server/snake_replay.go`), the server replays the log and rejects any score that
+does not match. Other games get a points-per-second sanity cap until their replay is ported.
+Names are 2–12 chars, filtered for profanity. Score posts are rate limited per IP.
+
+## Adding a game
+
+1. Create `extension/games/<id>/game.js` exporting a factory that returns
+   `{ id, tps, size, score, level, init(shell), onInput(action, shell), update(shell), render(ctx, shell), hud() }`.
+   Use `shell.rng` for all randomness and call `shell.end()` on game over.
+2. Add it to `extension/games/catalog.js`.
+3. Optional: port the rules to `server/<id>_replay.go` and add a case in `scores()` for verified scores.
+
+## Roadmap
+
+- [x] Store page, GameShell, Snake with AI autopilot, local bests
+- [x] Leaderboard server with replay verification
+- [ ] PipeDream (timer, time bombs, water/oil/gas)
+- [ ] Brick Break, Stacker, Rock Field, Maze Chase
+- [ ] Ghost replay of the #1 run
+- [ ] Chrome Web Store listing

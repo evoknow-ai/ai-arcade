@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Arcade</title>
+<link rel="stylesheet" href="store.css">
+</head>
+<body>
+<header class="top">
+  <a class="wordmark" href="#" id="home">AI<span>ARCADE</span></a>
+  <nav class="top-right">
+    <span class="status" id="netStatus" title="Leaderboard server">offline</span>
+    <button class="name" id="nameBtn" title="Change your player name">Set your name</button>
+  </nav>
+</header>
+
+<main id="storeView">
+  <section class="hero">
+    <div class="cabinet">
+      <div class="marquee" id="heroMarquee">Snake</div>
+      <canvas id="attract" width="480" height="480"></canvas>
+      <div class="bezel">attract mode</div>
+    </div>
+    <div class="hero-copy">
+      <p class="kicker" id="heroKicker">Featured</p>
+      <h1 id="heroTitle">Snake</h1>
+      <p class="lead" id="heroTagline"></p>
+      <p class="meta" id="heroAi"></p>
+      <div class="hero-actions">
+        <button class="play" id="heroPlay">Play</button>
+        <div class="bests">
+          <span>Your best <b id="heroLocalBest">–</b></span>
+          <span>World best <b id="heroWorldBest">–</b></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="shelf">
+    <div class="shelf-head">
+      <h2>All games</h2>
+      <div class="filters" id="filters"></div>
+    </div>
+    <ul class="games" id="games"></ul>
+  </section>
+</main>
+
+<main id="playView" hidden>
+  <div class="playwrap">
+    <div class="stage">
+      <div class="hud">
+        <button id="back" class="ghost">← Store</button>
+        <span class="hud-title" id="playTitle"></span>
+        <span class="hud-stat">Score <b id="hudScore">0</b></span>
+        <span class="hud-stat">Level <b id="hudLevel">1</b></span>
+        <span class="hud-stat">Time <b id="hudTime">0:00</b></span>
+        <span class="hud-extra" id="hudExtra"></span>
+        <button id="pause" class="ghost">Pause</button>
+      </div>
+      <canvas id="game"></canvas>
+      <p class="controls" id="playControls"></p>
+    </div>
+    <aside class="board">
+      <div class="board-head">
+        <h3>Leaderboard</h3>
+        <div class="periods">
+          <button data-period="daily">Today</button>
+          <button data-period="weekly">Week</button>
+          <button data-period="all" class="on">All time</button>
+        </div>
+      </div>
+      <ol id="boardList"></ol>
+      <p class="board-note" id="boardNote"></p>
+    </aside>
+  </div>
+</main>
+
+<dialog id="overDialog">
+  <h2>Game over</h2>
+  <p class="final">Score <b id="finalScore">0</b> · Level <b id="finalLevel">1</b></p>
+  <p class="final-note" id="finalNote"></p>
+  <form method="dialog" id="overForm">
+    <label>Name on the leaderboard
+      <input id="finalName" maxlength="12" minlength="2" pattern="[A-Za-z0-9 _.-]{2,12}" placeholder="Your name" required>
+    </label>
+    <div class="dialog-actions">
+      <button value="submit" class="play">Submit score</button>
+      <button value="again" class="ghost">Play again</button>
+      <button value="store" class="ghost">Back to store</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="nameDialog">
+  <h2>Your player name</h2>
+  <p>Shown on every leaderboard. 2–12 letters, numbers, spaces, dots, dashes.</p>
+  <form method="dialog">
+    <input id="nameInput" maxlength="12" minlength="2" pattern="[A-Za-z0-9 _.-]{2,12}" required>
+    <div class="dialog-actions">
+      <button value="save" class="play">Save name</button>
+      <button value="cancel" class="ghost">Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<script type="module" src="store.js"></script>
+</body>
+</html>
