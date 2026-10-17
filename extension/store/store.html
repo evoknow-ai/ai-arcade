@@ -71,10 +71,12 @@
           <button data-level="intermediate">Intermediate</button>
           <button data-level="advanced">Advanced</button>
         </div>
-        <button id="pause" class="ghost">Pause</button>
+        <button id="pause" class="ghost" title="P">Pause</button>
+        <button id="keysBtn" class="ghost" title="?">Keys</button>
+        <button id="fullscreenBtn" class="ghost" title="F">⛶</button>
       </div>
       <canvas id="game"></canvas>
-      <p class="controls" id="playControls"></p>
+      <div class="keystrip" id="keystrip"></div>
     </div>
     <aside class="board">
       <div class="board-head">
@@ -105,6 +107,20 @@
       <button value="store" class="ghost">Back to store</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="keysDialog">
+  <h2>Keyboard shortcuts</h2>
+  <p class="keys-game" id="keysGame"></p>
+  <dl class="keys" id="keysList"></dl>
+  <p class="keys-sub">Everywhere</p>
+  <dl class="keys">
+    <div><dt><kbd>P</kbd> <kbd>Esc</kbd></dt><dd>Pause / resume</dd></div>
+    <div><dt><kbd>F</kbd></dt><dd>Full screen</dd></div>
+    <div><dt><kbd>M</kbd></dt><dd>Mute sound</dd></div>
+    <div><dt><kbd>?</kbd></dt><dd>This list</dd></div>
+  </dl>
+  <form method="dialog"><div class="dialog-actions"><button value="close" class="play">Got it</button></div></form>
 </dialog>
 
 <dialog id="themeDialog">

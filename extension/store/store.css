@@ -162,3 +162,18 @@ dialog input { display: block; width: 100%; margin-top: 6px; padding: 10px 12px;
   .reveal { opacity: 1; transform: none; }
 }
 .credits { font-family: var(--display); font-weight: 700; color: var(--marquee); padding: 4px 12px; border: 1px solid color-mix(in srgb, var(--marquee) 40%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--marquee) 10%, transparent); text-shadow: 0 0 10px color-mix(in srgb, var(--marquee) 50%, transparent); }
+
+/* ---- keys + fullscreen ---- */
+kbd { display: inline-block; min-width: 1.6em; padding: 2px 7px; border-radius: 6px; font: 600 12px var(--body); color: var(--paper); background: linear-gradient(180deg, var(--surface-3), var(--surface-2)); border: 1px solid var(--glass-border); box-shadow: 0 2px 0 #0006, 0 1px 0 #fff2 inset; text-align: center; }
+.keystrip { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; padding: 10px 6px 0; color: var(--paper-dim); font-size: 12px; }
+.keystrip span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.keys { display: grid; gap: 6px; margin: 8px 0 14px; }
+.keys div { display: grid; grid-template-columns: 150px 1fr; align-items: center; gap: 10px; }
+.keys dt { display: flex; gap: 4px; flex-wrap: wrap; margin: 0; }
+.keys dd { margin: 0; color: var(--paper-dim); }
+.keys-game { margin: 0; color: var(--cyan); font-weight: 600; }
+.keys-sub { margin: 0; color: var(--paper-dim); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; }
+.stage:fullscreen { background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; width: 100vw; height: 100vh; }
+.stage:fullscreen .hud { max-width: 1100px; border-radius: 14px 14px 0 0; }
+.stage:fullscreen #game { max-width: min(100vw - 32px, 1100px); max-height: calc(100vh - 150px); width: auto; height: auto; object-fit: contain; }
+.stage:fullscreen .keystrip { color: var(--paper-dim); }

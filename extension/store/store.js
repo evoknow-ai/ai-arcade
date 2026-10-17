@@ -81,7 +81,7 @@ async function play(game) {
   current = game;
   syncDifficultyUI();
   $("storeView").hidden = true; $("playView").hidden = false;
-  $("playTitle").textContent = game.title; $("playControls").textContent = game.controls || "";
+  $("playTitle").textContent = game.title; renderKeystrip(game);
   loadBoard();
   const mod = await game.load();
   shell?.destroy();
@@ -196,6 +196,43 @@ $("themeBtn").onclick = () => {
   }
   $("themeDialog").showModal();
 };
+
+// keyboard shortcuts: on-screen strip, help dialog, fullscreen, mute
+function renderKeystrip(game) {
+  const strip = $("keystrip"); strip.innerHTML = "";
+  const items = [...(game.shortcuts || []), ["P", "Pause"], ["F", "Full screen"], ["?", "All keys"]];
+  for (const [keys, label] of items) {
+    const span = document.createElement("span");
+    span.innerHTML = keys.split(" ").filter(Boolean).map(k => /^(\/|\+)$/.test(k) ? k : `<kbd>${esc(k)}</kbd>`).join(" ") + ` ${esc(label)}`;
+    strip.appendChild(span);
+  }
+}
+function showKeys() {
+  if (!current) return;
+  $("keysGame").textContent = current.title;
+  const list = $("keysList"); list.innerHTML = "";
+  for (const [keys, label] of current.shortcuts || []) {
+    const row = document.createElement("div");
+    row.innerHTML = `<dt>${keys.split(" ").filter(Boolean).map(k => /^(\/|\+)$/.test(k) ? k : `<kbd>${esc(k)}</kbd>`).join(" ")}</dt><dd>${esc(label)}</dd>`;
+    list.appendChild(row);
+  }
+  const wasPaused = shell?.paused; if (shell && !wasPaused) shell.togglePause();
+  const d = $("keysDialog"); d.showModal(); d.onclose = () => { if (shell && !wasPaused && shell.paused) shell.togglePause(); };
+}
+function toggleFullscreen() {
+  const stage = document.querySelector(".stage");
+  if (document.fullscreenElement) document.exitFullscreen(); else stage.requestFullscreen?.();
+}
+$("keysBtn").onclick = showKeys;
+$("fullscreenBtn").onclick = toggleFullscreen;
+window.addEventListener("keydown", (e) => {
+  const tag = e.target?.tagName; if (tag === "INPUT" || tag === "TEXTAREA" || e.target?.isContentEditable || document.querySelector("dialog[open]")) return;
+  if (!shell) return;
+  if (e.key === "f" || e.key === "F") { e.preventDefault(); toggleFullscreen(); }
+  if (e.key === "?" ) { e.preventDefault(); showKeys(); }
+  if (e.key === "m" || e.key === "M") { shell.audio.muted = !shell.audio.muted; $("hudExtra").dataset.muted = shell.audio.muted; }
+});
+document.addEventListener("fullscreenchange", () => $("fullscreenBtn").textContent = document.fullscreenElement ? "⤢" : "⛶");
 
 // 3D tilt that follows the pointer
 function tilt(el, max = 8) {

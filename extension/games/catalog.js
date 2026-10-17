@@ -9,6 +9,7 @@ export const CATALOG = [
     controls: "Click or tap a cell to place the next piece. Space starts the flow early for a bonus. H toggles the AI hint. Magic Blocks (★) route the flow into any connected pipe. Timer Blocks hold the fluid for 5–30 s, then let it through.",
     ai: "Hint mode highlights where the next piece keeps the flow alive longest.",
     load: () => import("./pipedream/game.js"),
+    shortcuts: [["Click / Tap", "Place the next piece"], ["Space", "Start the flow early (bonus)"], ["H", "Toggle AI hint"]],
     status: "ready",
   },
   {
@@ -19,6 +20,7 @@ export const CATALOG = [
     controls: "Arrows / WASD / swipe. Space toggles the AI autopilot.",
     ai: "Built-in autopilot you can switch on mid-run to see how a pathfinder plays.",
     load: () => import("./snake/game.js"),
+    shortcuts: [["← ↑ → ↓ / WASD", "Steer"], ["Swipe", "Steer on touch"], ["Space", "Toggle AI autopilot"]],
     status: "ready",
   },
   {
@@ -29,6 +31,7 @@ export const CATALOG = [
     controls: "Hover to aim, click to fire (or ←/→ angle, ↑/↓ power, Space). 1–8 picks a weapon, Tab cycles, B opens the armory.",
     ai: "An AI gunner that simulates its shots, shops for weapons, and tightens its aim every ridge.",
     load: () => import("./scorched/game.js"),
+    shortcuts: [["Hover + Click", "Aim and fire"], ["← →", "Angle"], ["↑ ↓", "Power"], ["Space", "Fire"], ["1–8", "Select weapon"], ["Tab", "Cycle weapons"], ["B", "Open / close the armory"]],
     status: "ready",
   },
   {
@@ -39,6 +42,7 @@ export const CATALOG = [
     controls: "Click reveals, right-click flags (or Space toggles flag mode). Click a number to chord. H for a solver hint.",
     ai: "A logic solver that can prove a cell safe or a mine when there is enough information.",
     load: () => import("./minefield/game.js"),
+    shortcuts: [["Click / Tap", "Reveal"], ["Right-click", "Flag"], ["Space", "Toggle flag mode"], ["Click a number", "Chord its neighbours"], ["H", "Solver hint (−50)"]],
     status: "ready",
   },
   { id: "breakout", title: "Brick Break", genre: "Arcade", tagline: "One ball, one paddle, a wall that fights back.", load: null, status: "soon" },
