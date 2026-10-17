@@ -45,7 +45,9 @@ export class GameShell {
       const r = this.canvas.getBoundingClientRect();
       return { x: (e.clientX - r.left) * (this.w / r.width), y: (e.clientY - r.top) * (this.h / r.height) };
     };
-    this._onClick = (e) => { if (this.paused || this.ended || !this.game.onPointer) return; const p = this._toGame(e); this.game.onPointer(p.x, p.y, this); };
+    this._onClick = (e) => { if (this.paused || this.ended || !this.game.onPointer) return; const p = this._toGame(e); this.game.onPointer(p.x, p.y, this, 0); };
+    this._onContext = (e) => { if (!this.game.onPointer) return; e.preventDefault(); if (this.paused || this.ended) return; const p = this._toGame(e); this.game.onPointer(p.x, p.y, this, 2); };
+    canvas.addEventListener("contextmenu", this._onContext);
     this._onMove = (e) => { if (!this.game.onHover) return; const p = this._toGame(e); this.game.onHover(p.x, p.y, this); };
     this._onLeave = () => this.game.onHover?.(-1, -1, this);
     canvas.addEventListener("click", this._onClick);
@@ -107,7 +109,7 @@ export class GameShell {
   }
   destroy() {
     cancelAnimationFrame(this.raf); this.input.destroy(); window.removeEventListener("resize", this._resize);
-    this.canvas.removeEventListener("click", this._onClick); this.canvas.removeEventListener("pointermove", this._onMove); this.canvas.removeEventListener("pointerleave", this._onLeave);
+    this.canvas.removeEventListener("click", this._onClick); this.canvas.removeEventListener("contextmenu", this._onContext); this.canvas.removeEventListener("pointermove", this._onMove); this.canvas.removeEventListener("pointerleave", this._onLeave);
   }
 }
 
