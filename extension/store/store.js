@@ -11,6 +11,13 @@ let shell = null, attractShell = null, current = null, period = "all";
 let identity = await store.getIdentity();
 await loadTheme();
 let difficulty = (await store.getSync("difficulty")).difficulty || "intermediate";
+// shared credits wallet: games earn with good play and spend in their shops
+const wallet = {
+  balance: await store.getCredits(),
+  earn(n) { this.balance += Math.round(n); store.setCredits(this.balance); renderCredits(); },
+  spend(n) { if (this.balance < n) return false; this.balance -= n; store.setCredits(this.balance); renderCredits(); return true; },
+};
+function renderCredits() { $("credits").textContent = wallet.balance.toLocaleString() + " cr"; }
 const DIFF_LABEL = { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" };
 
 // ---------- Store view ----------
@@ -79,7 +86,7 @@ async function play(game) {
   const mod = await game.load();
   shell?.destroy();
   shell = new GameShell({
-    canvas: $("game"), game: mod.default({ difficulty }),
+    canvas: $("game"), game: mod.default({ difficulty }), wallet,
     onHud: ({ score, level, elapsed, extra }) => {
       $("hudScore").textContent = score.toLocaleString(); $("hudLevel").textContent = level;
       $("hudTime").textContent = fmt(elapsed); $("hudExtra").textContent = extra || "";
@@ -158,6 +165,7 @@ $("pause").onclick = () => shell?.togglePause();
 document.querySelectorAll(".periods button").forEach(b => b.onclick = () => {
   period = b.dataset.period; document.querySelectorAll(".periods button").forEach(x => x.classList.toggle("on", x === b)); loadBoard();
 });
+renderCredits();
 $("nameBtn").textContent = identity.displayName || "Set your name";
 $("nameBtn").onclick = () => { $("nameInput").value = identity.displayName; const d = $("nameDialog"); d.showModal(); d.onclose = async () => {
   if (d.returnValue !== "save") return;

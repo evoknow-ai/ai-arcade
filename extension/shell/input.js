@@ -63,5 +63,6 @@ function isTyping(el) {
 const KEYMAP = {
   ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
   KeyW: "up", KeyS: "down", KeyA: "left", KeyD: "right",
-  Space: "action", Enter: "action", KeyP: "pause", Escape: "pause", KeyH: "hint",
+  Space: "action", Enter: "action", KeyP: "pause", Escape: "pause", KeyH: "hint", KeyB: "shop", Tab: "next",
+  Digit1: "slot1", Digit2: "slot2", Digit3: "slot3", Digit4: "slot4", Digit5: "slot5", Digit6: "slot6", Digit7: "slot7", Digit8: "slot8", Digit9: "slot9",
 };

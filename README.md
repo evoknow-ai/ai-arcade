@@ -74,7 +74,8 @@ Names are 2–12 chars, filtered for profanity. Score posts are rate limited per
 - [x] PipeDream — level timer, start-now bonus, time bombs, water/oil/gas, reservoirs, valves, Magic Blocks, Timer Blocks, AI hint
 - [x] Themes (Aurora, Midnight, Sunset, Terminal) and Beginner / Intermediate / Advanced difficulty
 - [x] Snake with AI autopilot
-- [x] Scorched Ridge — artillery vs AI gunner, destructible terrain, wind, aim-by-mouse
+- [x] Scorched Ridge — artillery vs AI gunner, 8 weapons (digger, foundation breaker, cluster, guided, smart, drone…), armory with shields/armor/barrel, troops, six scenes with weather and wildlife
+- [x] Credits wallet shared across games (persisted in chrome.storage)
 - [x] Mine Field — minesweeper with chords, flag mode, and a logic-solver hint
 - [ ] Brick Break, Stacker, Rock Field, Maze Chase
 - [ ] Global leaderboard on eatsleepai.us (server already written; needs PipeDream replay port)

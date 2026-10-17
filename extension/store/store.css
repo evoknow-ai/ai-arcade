@@ -161,3 +161,4 @@ dialog input { display: block; width: 100%; margin-top: 6px; padding: 10px 12px;
   *, *:before, *:after { animation: none !important; transition: none !important; }
   .reveal { opacity: 1; transform: none; }
 }
+.credits { font-family: var(--display); font-weight: 700; color: var(--marquee); padding: 4px 12px; border: 1px solid color-mix(in srgb, var(--marquee) 40%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--marquee) 10%, transparent); text-shadow: 0 0 10px color-mix(in srgb, var(--marquee) 50%, transparent); }

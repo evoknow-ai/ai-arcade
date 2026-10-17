@@ -16,7 +16,9 @@ export class RNG {
 }
 
 export class GameShell {
-  constructor({ canvas, game, onEnd, onHud, seed }) {
+  constructor({ canvas, game, onEnd, onHud, seed, wallet }) {
+    // credits wallet shared across games (store supplies a persistent one)
+    this.wallet = wallet || { balance: 0, earn() {}, spend() { return false; } };
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.game = game;
@@ -113,4 +115,4 @@ export class GameShell {
   }
 }
 
-export const ACTION_CODE = { up: 1, down: 2, left: 3, right: 4, action: 5, hint: 6 };
+export const ACTION_CODE = { up: 1, down: 2, left: 3, right: 4, action: 5, hint: 6, shop: 7, next: 8, slot1: 11, slot2: 12, slot3: 13, slot4: 14, slot5: 15, slot6: 16, slot7: 17, slot8: 18, slot9: 19 };

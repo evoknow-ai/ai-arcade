@@ -66,3 +66,7 @@ export async function localScores(gameId, period = "all") {
   const since = period === "daily" ? Date.now() - 864e5 : period === "weekly" ? Date.now() - 7 * 864e5 : 0;
   return (history[gameId] || []).filter(e => e.ts >= since);
 }
+
+// Credits: a wallet that persists across games and sessions.
+export async function getCredits() { return (await get("credits")).credits || 0; }
+export async function setCredits(n) { await set({ credits: Math.max(0, Math.round(n)) }); }
