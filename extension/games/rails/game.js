@@ -15,27 +15,40 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
   const diff = DIFFICULTY[difficulty] || DIFFICULTY.intermediate;
   let T = null, tick = 0;
   const g = { id: "rails", tps: 60, size: { width: W, height: H }, score: 0, level: 1, autopilot, init, update, render, onInput, onPointer, onPointerDown, onPointerUp, onHover, hud };
-  let switches, trains, spawnT, delivered, lives, particles, popups, smoke, msg, msgTtl, shake, hover, hint, hintTtl, combo, warn, drag, dayT, misrouted, stars;
+  let switches, trains, spawnT, delivered, lives, particles, popups, smoke, msg, msgTtl, shake, hover, hint, hintTtl, combo, warn, drag, dayT, misrouted, stars, pending, scene, sceneIdx, clouds, flock, snow;
+  const SCENES = ["meadow", "city", "desert", "alpine"];
   const DAY = 60 * 100, NIGHT = 60 * 45; // seconds × 60
   const isNight = () => dayT % (DAY + NIGHT) >= DAY;
 
   function init(sh) {
     g.score = 0; g.level = 1; delivered = 0; lives = diff.lives; particles = []; popups = []; smoke = []; shake = 0; combo = 0; hint = null; hintTtl = 0; warn = null;
     switches = []; drag = null; dayT = 0; misrouted = 0; stars = Array.from({ length: 60 }, () => [sh.rng.next() * W, sh.rng.next() * 60, sh.rng.next()]);
-    trains = []; spawnT = 60; say("Route each train to its numbered line", 150);
+    trains = []; spawnT = 60; pending = null; sceneIdx = sh.rng.int(SCENES.length); setScene(sh); say("Route each train to its numbered line", 150);
   }
   function say(t, ttl) { msg = t; msgTtl = ttl; }
+  function setScene(sh) {
+    scene = SCENES[sceneIdx % SCENES.length];
+    clouds = Array.from({ length: 6 }, () => ({ x: sh.rng.next() * W, y: 20 + sh.rng.next() * 40, w: 50 + sh.rng.next() * 70, v: 0.08 + sh.rng.next() * 0.12 }));
+    flock = null; snow = scene === "alpine" ? Array.from({ length: 80 }, () => [sh.rng.next() * W, sh.rng.next() * H, 0.4 + sh.rng.next() * 0.8]) : null;
+    g.sceneSeed = sh.rng.next() * 1000;
+  }
   function pop(x, y, text, color) { popups.push({ x, y, text, color, ttl: 55 }); }
-  function spawn(sh) {
+  function plan(sh) { // decide the next train now, so its headlight can be shown approaching
     const dir = sh.rng.next() < 0.5 ? 1 : -1, track = sh.rng.int(TRACKS);
+    const dest = sh.rng.next() < 0.7 ? (track + 1 + sh.rng.int(TRACKS - 1)) % TRACKS : track;
+    pending = { dir, track, dest, t: 0 };
+  }
+  function spawn(sh) {
+    const dir = pending ? pending.dir : (sh.rng.next() < 0.5 ? 1 : -1), track = pending ? pending.track : sh.rng.int(TRACKS);
     const x0 = dir > 0 ? -40 : W + 40;
-    if (trains.some(tr => Math.round(tr.y) === track && Math.abs(tr.x - x0) < 260)) return; // entrance busy
+    if (trains.some(tr => Math.round(tr.y) === track && Math.abs(tr.x - x0) < 260)) { spawnT = 40; return; } // entrance busy, try again soon
     let speed = diff.speed[0] + sh.rng.next() * (diff.speed[1] - diff.speed[0]) + g.level * 0.05;
     const cars = diff.cars[0] + sh.rng.int(diff.cars[1] - diff.cars[0] + 1);
-    let dest = sh.rng.next() < 0.7 ? (track + 1 + sh.rng.int(TRACKS - 1)) % TRACKS : track;
+    let dest = pending ? pending.dest : (sh.rng.next() < 0.7 ? (track + 1 + sh.rng.int(TRACKS - 1)) % TRACKS : track);
+    pending = null;
     const night = isNight(); let kind = "coal";
     if (night) { speed *= 1.35; const r = sh.rng.next(); if (r < 0.3) { kind = "ghost"; speed *= 1.3; } else if (r < 0.42) kind = "skull"; }
-    trains.push({ x: x0, y: track, dir, speed, cur: speed, cars, dest, kind, trail: [], color: kind === "ghost" ? "#9FE8FF" : kind === "skull" ? "#2A2A32" : [T?.accent, T?.marquee, "#B57BFF", "#4CD964", "#FFB454"][sh.rng.int(5)], cross: null, passed: new Set(), stopped: false });
+    trains.push({ x: x0, y: track, dir, speed, cur: speed, cars, dest, kind, trail: [], color: kind === "ghost" ? "#9FE8FF" : kind === "skull" ? "#2A2A32" : [T?.accent || "#FF5CA8", T?.marquee || "#FFCF4A", "#B57BFF", "#4CD964", "#FFB454"][sh.rng.int(5)], cross: null, passed: new Set(), stopped: false });
   }
   // ---------- input ----------
   const mid = (s) => [(s.x0 + s.x1) / 2, (TY[s.l0] + TY[s.l1]) / 2];
@@ -47,13 +60,14 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
   function onPointerUp(px, py, sh) {
     if (!drag) return; const d = drag; drag = null;
     const l1 = lineAt(py); const span = Math.abs(px - d.x0);
-    if (l1 < 0 || Math.abs(l1 - d.l0) !== 1) { if (span > 10) say("Connect two neighbouring lines", 60); return; }
-    if (span < MIN_SPAN) { say("Too sharp — make it longer", 60); sh.audio.hit(); return; }
+    const jump = Math.abs(l1 - d.l0);
+    if (l1 < 0 || jump < 1) { if (span > 10) say("Connect two different lines", 60); return; }
+    if (span < MIN_SPAN * jump) { say(`Too sharp — a ${jump}-line crossover needs ${MIN_SPAN * jump}px`, 70); sh.audio.hit(); return; }
     const sw = { x0: d.x0, l0: d.l0, x1: d.x0 + Math.sign(px - d.x0) * Math.min(MAX_SPAN, span), l1 };
     if (switches.some(o => overlaps(o, sw))) { say("That crossover overlaps another", 60); sh.audio.hit(); return; }
     switches.push(sw); sh.record(1000 + Math.round(sw.x0) * 1000 + sw.l0 * 100 + Math.round(Math.abs(sw.x1 - sw.x0)) * (sw.x1 > sw.x0 ? 1 : -1)); sh.audio.tone({ freq: 520, type: "triangle", dur: 0.08, vol: 0.08 });
   }
-  function overlaps(a, b) { const lines = new Set([a.l0, a.l1]); if (!lines.has(b.l0) && !lines.has(b.l1)) return false; const [a0, a1] = [Math.min(a.x0, a.x1), Math.max(a.x0, a.x1)], [b0, b1] = [Math.min(b.x0, b.x1), Math.max(b.x0, b.x1)]; return a0 < b1 + 10 && b0 < a1 + 10; }
+  function overlaps(a, b) { const lo = (s) => [Math.min(s.l0, s.l1), Math.max(s.l0, s.l1)]; const [a0l, a1l] = lo(a), [b0l, b1l] = lo(b); if (a1l < b0l || b1l < a0l) return false; const [a0, a1] = [Math.min(a.x0, a.x1), Math.max(a.x0, a.x1)], [b0, b1] = [Math.min(b.x0, b.x1), Math.max(b.x0, b.x1)]; return a0 < b1 + 10 && b0 < a1 + 10; }
   function onPointer(px, py, sh) {
     const tr = trainAt(px, py);
     if (tr) { if (tr.kind === "skull") { say("The skull train doesn't stop", 60); sh.audio.hit(); return; } tr.stopped = !tr.stopped; sh.record(3000 + Math.round(px)); sh.audio.tone({ freq: tr.stopped ? 240 : 420, type: "sawtooth", dur: 0.15, slide: tr.stopped ? -100 : 120, vol: 0.08 }); return; }
@@ -77,6 +91,7 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
     smoke = smoke.filter(p => (p.ttl -= 1) > 0); for (const p of smoke) { p.x += p.vx; p.y -= 0.5; p.r += 0.15; }
     popups = popups.filter(p => (p.ttl -= 1) > 0);
     if (--spawnT <= 0) { spawnT = Math.max(90, diff.every - g.level * 10); spawn(sh); }
+    if (!pending && spawnT <= 100) plan(sh); if (pending) pending.t++;
     for (const tr of trains) {
       const want = tr.stopped ? 0 : tr.speed; tr.cur += (want - tr.cur) * 0.06; if (Math.abs(tr.cur - want) < 0.01) tr.cur = want;
       if (tr.cur < 0.01) { tr.trail.unshift([tr.x, tr.y]); if (tr.trail.length > 900) tr.trail.pop(); continue; }
@@ -88,14 +103,14 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
       const tail = tr.x - tr.dir * (ENG + tr.cars * CAR);
       if ((tr.dir > 0 && tail > W + 10) || (tr.dir < 0 && tail < -10)) {
         tr.done = true; const line = Math.round(tr.y), ex = tr.dir > 0 ? W - 60 : 60;
-        if (line === tr.dest) { delivered += tr.cars; combo++; const mult = tr.kind === "skull" ? 3 : tr.kind === "ghost" ? 2 : 1; const pts = tr.cars * 10 * Math.min(5, combo) * mult; g.score += pts; sh.wallet?.earn(tr.cars * mult); pop(ex, TY[line] - 24, `+${pts} · ${tr.cars * mult} cr`, T?.marquee); sh.audio.eat(); if (delivered >= g.level * 40) { g.level++; say(`Level ${g.level} · faster`, 90); sh.audio.levelUp(); } }
+        if (line === tr.dest) { delivered += tr.cars; combo++; const mult = tr.kind === "skull" ? 3 : tr.kind === "ghost" ? 2 : 1; const pts = tr.cars * 10 * Math.min(5, combo) * mult; g.score += pts; sh.wallet?.earn(tr.cars * mult); pop(ex, TY[line] - 24, `+${pts} · ${tr.cars * mult} cr`, T?.marquee); sh.audio.eat(); if (delivered >= g.level * 40) { g.level++; sceneIdx++; setScene(sh); say(`Level ${g.level} · new territory`, 90); sh.audio.levelUp(); } }
         else { misrouted++; combo = 0; pop(ex, TY[line] - 24, `wrong line (wanted ${tr.dest + 1})`, T?.accent); sh.audio.hit(); }
       }
     }
     trains = trains.filter(t => !t.done);
     // collisions: same line, bodies overlap
     for (let i = 0; i < trains.length; i++) for (let j = i + 1; j < trains.length; j++) {
-      const a = trains[i], b = trains[j]; if (Math.abs(a.y - b.y) > 0.45) continue;
+      const a = trains[i], b = trains[j]; if (Math.abs(a.y - b.y) > 0.4) continue;
       const [a0, a1] = span(a), [b0, b1] = span(b);
       if (a0 < b1 && b0 < a1) { crash(a, b, sh); return; }
     }
@@ -127,7 +142,7 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
         if (!tr.cross) for (const s of sw) { if (tr.passed.has(s)) continue; const e = entry(s, Math.round(tr.y), tr.dir, tr.x - tr.dir * tr.speed * 3, tr.x); if (e) { tr.cross = e; tr.passed.add(s); break; } }
         if (tr.cross) { const k = Math.min(1, Math.abs(tr.x - tr.cross.x0) / Math.abs(tr.cross.x1 - tr.cross.x0)); tr.y = tr.cross.from + (tr.cross.to - tr.cross.from) * ease(k); if (k >= 1) { tr.y = tr.cross.to; tr.cross = null; } }
       }
-      for (let i = 0; i < st.length; i++) for (let j = i + 1; j < st.length; j++) { const a = st[i], b = st[j]; if (Math.abs(a.y - b.y) > 0.45) continue; const [a0, a1] = span(a), [b0, b1] = span(b); if (a0 < b1 && b0 < a1) return { a: a.ref, b: b.ref, t, x: (a.x + b.x) / 2, y: a.y }; }
+      for (let i = 0; i < st.length; i++) for (let j = i + 1; j < st.length; j++) { const a = st[i], b = st[j]; if (Math.abs(a.y - b.y) > 0.4) continue; const [a0, a1] = span(a), [b0, b1] = span(b); if (a0 < b1 && b0 < a1) return { a: a.ref, b: b.ref, t, x: (a.x + b.x) / 2, y: a.y }; }
     }
     return null;
   }
@@ -138,10 +153,10 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
     for (const tr of [base.a, base.b]) {
       if (tr.cross) continue;
       const line = Math.round(tr.y);
-      for (const to of [line - 1, line + 1]) {
+      for (const to of [line - 1, line + 1, line - 2, line + 2]) {
         if (to < 0 || to >= TRACKS) continue;
         for (const ahead of [50, 110, 180]) {
-          const x0 = tr.x + tr.dir * ahead, x1 = x0 + tr.dir * 80;
+          const x0 = tr.x + tr.dir * ahead, x1 = x0 + tr.dir * 80 * Math.abs(to - line);
           if (x0 < 10 || x0 > W - 10 || x1 < 10 || x1 > W - 10) continue;
           const cand = { x0, l0: line, x1, l1: to };
           if (switches.some(o => overlaps(o, cand))) continue;
@@ -162,21 +177,29 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
     const bg = c.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, night ? "#03040B" : shade(T.bg, 0.05)); bg.addColorStop(1, night ? "#070A16" : shade(T.bgGlow1, -0.5)); c.fillStyle = bg; c.fillRect(-10, -10, W + 20, H + 20);
     if (night) { c.fillStyle = "#fff"; for (const [x, y, z] of stars) { c.globalAlpha = 0.3 + 0.6 * Math.abs(Math.sin(tick / 40 + z * 9)); c.fillRect(x, 30 + y * 0.4, z > 0.8 ? 2 : 1, z > 0.8 ? 2 : 1); } c.globalAlpha = 1; c.shadowColor = "#F4F1E6"; c.shadowBlur = 24; c.fillStyle = "#EEEBE0"; c.beginPath(); c.arc(W - 70, 52, 13, 0, 7); c.fill(); c.shadowBlur = 0; }
     else { const k = (dayT % (DAY + NIGHT)) / DAY; const a = Math.max(0, 1 - Math.abs(k - 0.5) * 2) * 0.12; c.fillStyle = `rgba(255,220,150,${a})`; c.fillRect(0, 0, W, H); }
+    drawScenery(c, night);
     // ballast strips + rails
     for (let t = 0; t < TRACKS; t++) {
       const y = TY[t];
       c.fillStyle = "#00000044"; c.fillRect(0, y - 14, W, 28);
       c.fillStyle = shade(T.surface2, -0.2); for (let x = 4; x < W; x += 12) c.fillRect(x, y - 9, 6, 18);
       c.strokeStyle = shade(T.textDim, 0.2); c.lineWidth = 2; c.beginPath(); c.moveTo(0, y - 5); c.lineTo(W, y - 5); c.moveTo(0, y + 5); c.lineTo(W, y + 5); c.stroke();
-      c.fillStyle = T.textDim; c.font = "10px system-ui,sans-serif"; c.textAlign = "left"; c.textBaseline = "middle"; c.fillText(`LINE ${t + 1}`, 6, y - 22);
+      c.fillStyle = "#fff"; c.globalAlpha = 0.7; c.font = "700 10px system-ui,sans-serif"; c.textAlign = "left"; c.textBaseline = "middle"; c.shadowColor = "#000"; c.shadowBlur = 4; c.fillText(`LINE ${t + 1}`, 6, y - 22); c.shadowBlur = 0; c.globalAlpha = 1;
     }
     // crossovers the player has drawn
     for (const s of switches) drawCrossover(c, s, hover === s ? "#fff" : T.cyan, 1, true);
     if (hint && hintTtl > 0) { c.globalAlpha = 0.5 + 0.4 * Math.sin(tick / 5); drawCrossover(c, hint, T.marquee, 1, false); c.globalAlpha = 1; c.fillStyle = T.marquee; c.font = "700 11px system-ui,sans-serif"; c.textAlign = "center"; c.fillText("draw this", (hint.x0 + hint.x1) / 2, (TY[hint.l0] + TY[hint.l1]) / 2 - 16); }
-    if (drag) { const l1 = lineAt(drag.y), ok = l1 >= 0 && Math.abs(l1 - drag.l0) === 1 && Math.abs(drag.x - drag.x0) >= MIN_SPAN; const cand = { x0: drag.x0, l0: drag.l0, x1: ok ? drag.x0 + Math.sign(drag.x - drag.x0) * Math.min(MAX_SPAN, Math.abs(drag.x - drag.x0)) : drag.x, l1: ok ? l1 : drag.l0 }; c.globalAlpha = 0.7; if (ok) drawCrossover(c, cand, T.cyan, 1, false); else { c.strokeStyle = T.accent; c.lineWidth = 2; c.setLineDash([6, 6]); c.beginPath(); c.moveTo(drag.x0, TY[drag.l0]); c.lineTo(drag.x, drag.y); c.stroke(); c.setLineDash([]); } c.globalAlpha = 1; c.fillStyle = T.cyan; c.beginPath(); c.arc(drag.x0, TY[drag.l0], 5, 0, 7); c.fill(); }
+    if (drag) { const l1 = lineAt(drag.y), ok = l1 >= 0 && l1 !== drag.l0 && Math.abs(drag.x - drag.x0) >= MIN_SPAN * Math.abs(l1 - drag.l0); const cand = { x0: drag.x0, l0: drag.l0, x1: ok ? drag.x0 + Math.sign(drag.x - drag.x0) * Math.min(MAX_SPAN, Math.abs(drag.x - drag.x0)) : drag.x, l1: ok ? l1 : drag.l0 }; c.globalAlpha = 0.7; if (ok) drawCrossover(c, cand, T.cyan, 1, false); else { c.strokeStyle = T.accent; c.lineWidth = 2; c.setLineDash([6, 6]); c.beginPath(); c.moveTo(drag.x0, TY[drag.l0]); c.lineTo(drag.x, drag.y); c.stroke(); c.setLineDash([]); } c.globalAlpha = 1; c.fillStyle = T.cyan; c.beginPath(); c.arc(drag.x0, TY[drag.l0], 5, 0, 7); c.fill(); }
     // collision warning
     if (warn && warn.t < 240) { const y = TY[Math.round(warn.y)]; c.globalAlpha = 0.25 + 0.25 * Math.sin(tick / 4); c.fillStyle = T.accent; c.fillRect(Math.max(0, warn.x - 60), y - 16, 120, 32); c.globalAlpha = 1; c.fillStyle = T.accent; c.font = "800 11px system-ui,sans-serif"; c.textAlign = "center"; c.fillText(`⚠ ${Math.ceil(warn.t / 60)}s`, Math.max(40, Math.min(W - 40, warn.x)), y - 26); }
     for (const p of smoke) { c.globalAlpha = Math.min(0.35, p.ttl / 80); c.fillStyle = "#cfd3da"; c.beginPath(); c.arc(p.x, p.y, p.r, 0, 7); c.fill(); } c.globalAlpha = 1;
+    // the next train: a headlight glow growing at the edge of its line, and its number
+    if (pending) {
+      const ex = pending.dir > 0 ? 0 : W, y = TY[pending.track], k = Math.min(1, pending.t / 100), pulse = 0.7 + 0.3 * Math.sin(tick / 6);
+      const gr = c.createRadialGradient(ex, y, 0, ex, y, 60 + k * 80); gr.addColorStop(0, `rgba(255,244,204,${0.55 * k * pulse})`); gr.addColorStop(1, "rgba(255,244,204,0)"); c.fillStyle = gr; c.fillRect(ex - 160, y - 60, 320, 120);
+      c.globalAlpha = 0.5 + 0.5 * k; c.fillStyle = T.marquee; c.beginPath(); c.arc(ex + pending.dir * 18, y - 30, 9, 0, 7); c.fill(); c.fillStyle = "#000"; c.font = "800 11px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(pending.dest + 1, ex + pending.dir * 18, y - 29);
+      c.fillStyle = "#fff"; c.font = "800 9px system-ui,sans-serif"; c.fillText(pending.dir > 0 ? "▶" : "◀", ex + pending.dir * 18, y - 44); c.globalAlpha = 1;
+    }
     for (const tr of trains) drawTrain(c, tr);
     for (const tr of trains) { // destination badge above the engine
       const bx = tr.x, by = TY[0] + tr.y * 80 - 34, onLine = Math.round(tr.y) === tr.dest;
@@ -193,6 +216,44 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
     c.fillStyle = T.accent; for (let i = 0; i < lives; i++) { c.beginPath(); c.arc(W - 16 - i * 16, 14, 5, 0, 7); c.fill(); }
     if (msgTtl > 0 && msg) { c.font = "800 22px 'Chakra Petch',system-ui,sans-serif"; c.textAlign = "center"; c.fillStyle = T.marquee; c.shadowColor = "#000"; c.shadowBlur = 10; c.globalAlpha = Math.min(1, msgTtl / 20); c.fillText(msg, W / 2, H - 30); c.shadowBlur = 0; c.globalAlpha = 1; }
     c.restore();
+  }
+  // ---- scenery: parallax layers with their own motion, swapped every level ----
+  function drawScenery(c, night) {
+    const sd = g.sceneSeed || 0, horizon = 52;
+    // a faint ground tint over the whole yard, then the scenery proper clipped to the strip above line 1
+    c.fillStyle = { meadow: "#4CAF50", city: "#3A4A66", desert: "#D9A066", alpine: "#DCE6F2" }[scene]; c.globalAlpha = night ? 0.05 : 0.09; c.fillRect(0, 0, W, H); c.globalAlpha = 1;
+    c.save(); c.beginPath(); c.rect(0, 28, W, TY[0] - 18 - 28); c.clip();
+    const dim = night ? 0.45 : 1, mix = (col, k) => shade(col, night ? -0.5 : k);
+    for (const cl of clouds) { cl.x += cl.v; if (cl.x > W + 80) cl.x = -80; }
+    if (scene === "meadow") {
+      c.fillStyle = mix("#6FBF73", 0.1); c.beginPath(); c.moveTo(0, horizon + 10); for (let x = 0; x <= W; x += 10) c.lineTo(x, horizon + 4 + Math.sin(x * 0.012 + sd) * 10 + Math.sin(x * 0.03 + sd * 2) * 4); c.lineTo(W, H); c.lineTo(0, H); c.fill();
+      c.fillStyle = night ? "#0B0D14" : "#ffffffCC"; for (const cl of clouds) { c.beginPath(); c.arc(cl.x, cl.y, cl.w * 0.25, 0, 7); c.arc(cl.x + cl.w * 0.3, cl.y - 6, cl.w * 0.3, 0, 7); c.arc(cl.x + cl.w * 0.6, cl.y, cl.w * 0.22, 0, 7); c.fill(); }
+      // windmill
+      const wx = 540, wy = horizon - 4; c.fillStyle = mix("#C9B79C", 0); c.beginPath(); c.moveTo(wx - 7, wy + 24); c.lineTo(wx + 7, wy + 24); c.lineTo(wx + 3, wy - 10); c.lineTo(wx - 3, wy - 10); c.fill();
+      c.strokeStyle = mix("#F4EFE6", 0); c.lineWidth = 2; c.save(); c.translate(wx, wy - 10); c.rotate(tick / 40); for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -18); c.stroke(); c.rotate(Math.PI / 2); } c.restore();
+      for (let i = 0; i < 9; i++) { const tx = 40 + i * 70 + Math.sin(sd + i) * 15, h = 14 + (i % 3) * 5; c.fillStyle = mix("#2F7A3C", 0); c.beginPath(); c.moveTo(tx, horizon + 6); c.lineTo(tx + 8, horizon + 6 + h); c.lineTo(tx - 8, horizon + 6 + h); c.fill(); }
+    } else if (scene === "city") {
+      for (let i = 0; i < 22; i++) { const bx = i * 30 + ((sd * (i + 1)) % 10), bh = 20 + ((sd * 7 * (i + 3)) % 40); c.fillStyle = mix("#3A4A66", -0.05 * (i % 3)); c.fillRect(bx, horizon + 14 - bh, 24, bh); c.fillStyle = T.marquee; for (let wy = horizon + 18 - bh; wy < horizon + 10; wy += 6) for (let wx = bx + 3; wx < bx + 22; wx += 6) { if (((wx * 7 + wy * 3 + i) % 5) < 3) { c.globalAlpha = (night ? 0.9 : 0.3) * (0.5 + 0.5 * Math.abs(Math.sin(tick / 70 + wx + wy))); c.fillRect(wx, wy, 2.5, 3); } } c.globalAlpha = 1; }
+      if (!flock && Math.sin(tick / 300 + sd) > 0.98) flock = { x: -40, y: 20 + (sd % 20), n: 5 }; if (flock) { flock.x += 1.2; if (flock.x > W + 60) flock = null; else { c.strokeStyle = night ? "#223" : "#000"; c.lineWidth = 1.5; for (let i = 0; i < flock.n; i++) { const x = flock.x - i * 10, y = flock.y + i * 3, w = Math.sin(tick / 4 + i) * 3; c.beginPath(); c.moveTo(x - 5, y + w); c.lineTo(x, y); c.lineTo(x + 5, y + w); c.stroke(); } } }
+      // a blinking tower light
+      c.fillStyle = T.accent; c.globalAlpha = 0.4 + 0.6 * (Math.floor(tick / 30) % 2); c.beginPath(); c.arc(330, horizon - 30, 3, 0, 7); c.fill(); c.globalAlpha = 1; c.fillStyle = mix("#3A4A66", 0); c.fillRect(328, horizon - 28, 4, 42);
+    } else if (scene === "desert") {
+      c.fillStyle = mix("#D9A066", 0.05); c.beginPath(); c.moveTo(0, H); for (let x = 0; x <= W; x += 8) c.lineTo(x, horizon + 8 + Math.sin(x * 0.02 + sd) * 8); c.lineTo(W, H); c.fill();
+      c.fillStyle = mix("#B07A3C", -0.2); c.beginPath(); c.moveTo(0, horizon + 14); c.lineTo(120, horizon - 20); c.lineTo(160, horizon - 22); c.lineTo(200, horizon + 14); c.fill(); c.beginPath(); c.moveTo(420, horizon + 14); c.lineTo(470, horizon - 26); c.lineTo(500, horizon - 10); c.lineTo(530, horizon + 14); c.fill();
+      for (let i = 0; i < 5; i++) { const cx = 60 + i * 120 + (sd * 3) % 40; c.fillStyle = mix("#4C8A4C", 0); c.fillRect(cx - 3, horizon - 6, 6, 24); c.fillRect(cx - 12, horizon + 2, 6, 10); c.fillRect(cx - 12, horizon + 2, 10, 4); c.fillRect(cx + 6, horizon - 2, 6, 10); c.fillRect(cx + 3, horizon - 2, 9, 4); }
+      // heat shimmer + tumbleweed
+      c.strokeStyle = `rgba(255,255,255,${night ? 0.03 : 0.08})`; for (let y = horizon + 2; y < horizon + 18; y += 4) { c.beginPath(); for (let x = 0; x <= W; x += 6) c.lineTo(x, y + Math.sin(x / 9 + tick / 7 + y) * 1.2); c.stroke(); }
+      const tw = (tick * 0.9 + sd * 10) % (W + 60) - 30; c.strokeStyle = mix("#8A6A3A", 0); c.lineWidth = 1.5; c.save(); c.translate(tw, horizon + 10 + Math.abs(Math.sin(tick / 10)) * -6); c.rotate(tick / 15); c.beginPath(); c.arc(0, 0, 7, 0, 7); c.moveTo(-7, 0); c.lineTo(7, 0); c.moveTo(0, -7); c.lineTo(0, 7); c.stroke(); c.restore();
+    } else if (scene === "alpine") {
+      c.fillStyle = mix("#7E8FA6", 0); c.beginPath(); c.moveTo(0, horizon + 14); for (let x = 0; x <= W; x += 40) c.lineTo(x, horizon - 26 + Math.abs(Math.sin(x * 0.021 + sd) * 36)); c.lineTo(W, horizon + 14); c.fill();
+      c.fillStyle = night ? "#C8D0DC" : "#F4F7FB"; c.beginPath(); c.moveTo(0, horizon + 14); for (let x = 0; x <= W; x += 40) { const y = horizon - 26 + Math.abs(Math.sin(x * 0.021 + sd) * 36); c.lineTo(x, y < horizon - 10 ? y : horizon + 14); } c.lineTo(W, horizon + 14); c.fill();
+      c.fillStyle = mix("#E8EEF5", 0); c.fillRect(0, horizon + 6, W, 10);
+      for (let i = 0; i < 12; i++) { const tx = 20 + i * 54 + Math.sin(sd * 2 + i) * 10; c.fillStyle = mix("#1E4A33", 0); c.beginPath(); c.moveTo(tx, horizon - 4); c.lineTo(tx + 7, horizon + 10); c.lineTo(tx - 7, horizon + 10); c.fill(); c.fillStyle = "#F4F7FB"; c.globalAlpha = 0.8; c.beginPath(); c.moveTo(tx, horizon - 4); c.lineTo(tx + 3, horizon + 2); c.lineTo(tx - 3, horizon + 2); c.fill(); c.globalAlpha = 1; }
+      for (const f of snow) { f[1] += f[2]; f[0] += Math.sin(tick / 40 + f[1] / 20) * 0.3; if (f[1] > H) { f[1] = -4; } c.globalAlpha = 0.5 + f[2] * 0.3; c.fillStyle = "#fff"; c.fillRect(f[0], f[1], f[2] > 0.9 ? 2 : 1.5, f[2] > 0.9 ? 2 : 1.5); } c.globalAlpha = 1;
+    }
+    c.restore();
+    // soft haze where the scenery meets the yard, so the rails read clearly
+    const hz = c.createLinearGradient(0, TY[0] - 40, 0, TY[0] - 16); hz.addColorStop(0, "rgba(0,0,0,0)"); hz.addColorStop(1, night ? "rgba(3,4,11,0.7)" : "rgba(7,17,31,0.5)"); c.fillStyle = hz; c.fillRect(0, TY[0] - 40, W, 24);
   }
   function drawCrossover(c, s, color, alpha, lever) {
     const y0 = TY[s.l0], y1 = TY[s.l1], x0 = s.x0, x1 = s.x1;

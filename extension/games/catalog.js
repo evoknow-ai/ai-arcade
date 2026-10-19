@@ -110,9 +110,9 @@ export const CATALOG = [
   {
     id: "rails", title: "Rail Switch", genre: "Puzzle",
     tagline: "Every train shows the line it must leave on. Draw the crossovers, hold trains with a tap, survive the graveyard shift.",
-    controls: "Drag between two neighbouring lines to lay a crossover. Tap a train to hold it, tap again to release. Click a crossover's × to remove it. Deliver on the numbered line for points; at night ghost trains pay double, the skull train triple but can't be stopped. H sketches a collision fix.",
+    controls: "Drag between any two lines to lay a crossover (longer for bigger jumps); the glow at the edge shows where the next train enters. Tap a train to hold it, tap again to release. Click a crossover's × to remove it. Deliver on the numbered line for points; at night ghost trains pay double, the skull train triple but can't be stopped. H sketches a collision fix.",
     ai: "A look-ahead simulator warns of collisions and designs the crossover (or the hold) that prevents them.",
-    shortcuts: [["Drag", "Lay a crossover between two lines"], ["Tap a train", "Hold / release it"], ["Click ×", "Remove a crossover"], ["H", "Sketch the saving crossover (−25)"]],
+    shortcuts: [["Drag", "Lay a crossover between any two lines"], ["Tap a train", "Hold / release it"], ["Click ×", "Remove a crossover"], ["H", "Sketch the saving crossover (−25)"]],
     load: () => import("./rails/game.js"), status: "ready",
   },
   {
