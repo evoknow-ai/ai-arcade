@@ -164,7 +164,7 @@ export default function createSolitaire({ autopilot = false, difficulty = "inter
       if (tick > 60 * 240) sh.end();
     }
   }
-  function hud() { return `${diff.name} · ${Math.floor(elapsed / 60)}s · ${moves} moves · stock ${stock.length}${diff.passes !== Infinity ? ` · pass ${passes + 1}/${diff.passes}` : ""} · H hint (−20)`; }
+  function hud() { return `${diff.name} · ${Math.floor(elapsed / 60)}s · ${moves} moves · stock ${stock.length}${diff.passes !== Infinity ? ` · pass ${passes + 1}/${diff.passes}` : ""}`; }
 
   // ---------- render ----------
   function render(c, sh) {

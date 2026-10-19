@@ -152,7 +152,7 @@ export default function createMineField({ autopilot = false, difficulty = "inter
       else { const h = solve(); if (h) { if (h.safe) reveal(h.x, h.y, sh); else toggleFlag(h.x, h.y, sh); } else { for (let i = 0; i < 50; i++) { const x = sh.rng.int(COLS), y = sh.rng.int(ROWS); if (!grid[y][x].open && !grid[y][x].flag) { reveal(x, y, sh); break; } } } }
     }
   }
-  function hud() { return `${diff.name} · ${diff.mines - flags} mines left · ${Math.floor(elapsed / 60)}s · ${flagMode ? "FLAG mode" : "reveal mode"} (Space) · H hint`; }
+  function hud() { return `${diff.name} · ${diff.mines - flags} mines left · ${Math.floor(elapsed / 60)}s · ${flagMode ? "flag mode" : "reveal mode"}`; }
 
   // ---------- render ----------
   const NUM_COLORS = ["", "#4DA3FF", "#4CD964", "#FF5C8A", "#B57BFF", "#FFB454", "#2CE6D6", "#F2F7FF", "#9DB4CC"];

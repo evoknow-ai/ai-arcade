@@ -362,7 +362,7 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
 
   function hud() {
     const t = Math.ceil(levelTime / 60);
-    return `${diff.name} · ${fluid.name} · ${filledCount}/${target} pipes · ${t}s` + (fluid === FLUIDS.gas ? ` · pressure ${gasPressure}` : "") + (hintOn ? " · hint on" : " · H for hint");
+    return `${diff.name} · ${fluid.name} · ${filledCount}/${target} pipes · ${t}s` + (fluid === FLUIDS.gas ? ` · pressure ${gasPressure}` : "") + (hintOn ? " · hint on" : "");
   }
 
   // ---------- render ----------
