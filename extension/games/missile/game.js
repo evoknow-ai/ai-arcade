@@ -131,7 +131,7 @@ export default function createMissile({ autopilot = false, difficulty = "interme
         w.vx += steer; const toT = (w.tx - w.x) * 0.0008; w.vx += toT; w.vx = Math.max(-2.2, Math.min(2.2, w.vx));
       }
       w.x += w.vx; w.y += w.vy;
-      if (tick % 3 === 0) w.trail.push([w.x, w.y]); if (w.trail.length > 60) w.trail.shift();
+      if (tick % 2 === 0) w.trail.push([w.x, w.y]); if (w.trail.length > (w.mirv ? 14 : 10)) w.trail.shift();
       if (w.mirv && w.y > w.splitY) { // mid-air burst into 3 heads
         w.mirv = false; burst(w.x, w.y, 16, T?.marquee, sh); sh.audio.tone({ freq: 240, type: "square", dur: 0.15, slide: -100, vol: 0.1 });
         for (let i = -1; i <= 1; i++) { const h = mkWarhead(sh, w.x, w.y, targetX(sh), 0.95); h.vx += i * 0.4; warheads.push(h); }
@@ -145,7 +145,7 @@ export default function createMissile({ autopilot = false, difficulty = "interme
     for (const b of blasts) {
       b.t++; b.r = b.t < 30 ? b.max * (b.t / 30) : b.max * Math.max(0, 1 - (b.t - 30) / 40);
       if (b.t > 70) b.dead = true;
-      for (const w of warheads) if (!w.dead && Math.hypot(w.x - b.x, w.y - b.y) < b.r) { w.dead = true; b.kills++; killed++; const pts = 25 * (1 + Math.min(4, b.kills - 1)) * (w.smart ? 2 : 1), cr = w.smart ? 6 : 3; g.score += pts; sh.wallet?.earn(cr); pop(w.x, w.y, `+${pts} · ${cr} cr`, T?.marquee); burst(w.x, w.y, 10, T?.marquee, sh); }
+      for (const w of warheads) if (!w.dead && Math.hypot(w.x - b.x, w.y - b.y) < b.r + (w.mirv ? 5 : 0)) { w.dead = true; b.kills++; killed++; const pts = 25 * (1 + Math.min(4, b.kills - 1)) * (w.smart ? 2 : 1), cr = w.smart ? 6 : 3; g.score += pts; sh.wallet?.earn(cr); pop(w.x, w.y, `+${pts} · ${cr} cr`, T?.marquee); burst(w.x, w.y, 10, T?.marquee, sh); }
       for (const bo of bombers) if (Math.hypot(bo.x - b.x, bo.y - b.y) < b.r + 8) { bo.dead = true; g.score += 150; sh.wallet?.earn(15); pop(bo.x, bo.y, "+150 · 15 cr", T?.cyan); burst(bo.x, bo.y, 24, T?.accent, sh); }
     }
     // automated defences
@@ -219,13 +219,7 @@ export default function createMissile({ autopilot = false, difficulty = "interme
     for (const tr of trucks) drawTruck(c, tr);
     for (const s of shields) { const k = s.flash ? (s.flash-- / 20) : 0; c.globalAlpha = 0.12 + 0.05 * Math.sin(tick / 8) + k * 0.3; c.fillStyle = T.cyan; c.beginPath(); c.arc(s.x, GROUND, s.r, Math.PI, 0); c.fill(); c.globalAlpha = 0.6 + k * 0.4; c.strokeStyle = T.cyan; c.lineWidth = 2; c.stroke(); c.globalAlpha = 1; c.fillStyle = T.cyan; c.font = "700 10px system-ui,sans-serif"; c.textAlign = "center"; c.fillText("●".repeat(s.hp), s.x, GROUND - s.r + 12); }
     for (const b of bombers) { c.fillStyle = sky.stars > 0.5 ? "#fff" : "#222"; c.beginPath(); c.moveTo(b.x - 14, b.y); c.lineTo(b.x + 14, b.y); c.lineTo(b.x + 4, b.y + 5); c.lineTo(b.x - 6, b.y + 5); c.closePath(); c.fill(); c.fillRect(b.x - 2, b.y - 5, 4, 5); c.fillStyle = T.accent; c.globalAlpha = 0.5 + 0.5 * Math.sin(tick / 4); c.fillRect(b.x + 12, b.y - 1, 2, 2); c.globalAlpha = 1; }
-    for (const w of warheads) {
-      const col = w.smart ? T.marquee : T.accent;
-      c.strokeStyle = col; c.lineWidth = 1.5; c.globalAlpha = 0.55; c.beginPath(); for (const [x, y] of w.trail) c.lineTo(x, y); c.lineTo(w.x, w.y); c.stroke(); c.globalAlpha = 1;
-      c.shadowColor = col; c.shadowBlur = 12; c.fillStyle = "#fff"; c.beginPath(); c.arc(w.x, w.y, w.mirv ? 3.5 : 2.5, 0, 7); c.fill(); c.shadowBlur = 0;
-      if (w.smart) { c.strokeStyle = col; c.lineWidth = 1; c.globalAlpha = 0.5 + 0.4 * Math.sin(tick / 3); c.beginPath(); c.arc(w.x, w.y, 6, 0, 7); c.stroke(); c.globalAlpha = 1; }
-      if (w.mirv) { c.fillStyle = col; c.globalAlpha = 0.6; c.beginPath(); c.arc(w.x - 3, w.y + 3, 1.5, 0, 7); c.arc(w.x + 3, w.y + 3, 1.5, 0, 7); c.fill(); c.globalAlpha = 1; }
-    }
+    for (const w of warheads) drawWarhead(c, w);
     for (const s of shots) {
       c.strokeStyle = T.cyan; c.lineWidth = 1.5; c.globalAlpha = 0.6; c.beginPath(); for (const [x, y] of s.trail) c.lineTo(x, y); c.lineTo(s.x, s.y); c.stroke(); c.globalAlpha = 1;
       c.shadowColor = T.cyan; c.shadowBlur = 10; c.fillStyle = T.cyan; c.beginPath(); c.arc(s.x, s.y, 2.5, 0, 7); c.fill(); c.shadowBlur = 0;
@@ -254,6 +248,28 @@ export default function createMissile({ autopilot = false, difficulty = "interme
     if (msgTtl > 0 && msg) { c.font = "800 22px 'Chakra Petch',system-ui,sans-serif"; c.textAlign = "center"; c.fillStyle = T.marquee; c.shadowColor = "#000"; c.shadowBlur = 12; c.globalAlpha = Math.min(1, msgTtl / 20); c.fillText(msg, W / 2, H / 2 - 60); c.shadowBlur = 0; c.globalAlpha = 1; }
     if (shop) drawShop(c, sh);
     c.restore();
+  }
+  function drawWarhead(c, w) {
+    const col = w.smart ? T.marquee : T.accent, size = w.mirv ? 2.2 : 1;
+    const ang = Math.atan2(w.vy, w.vx);
+    // jet exhaust: a short tapering plume of fading, widening puffs behind the body
+    const n = w.trail.length;
+    for (let i = 0; i < n; i++) { const [x, y] = w.trail[i], k = (i + 1) / n; c.globalAlpha = k * 0.45; c.fillStyle = i > n - 3 ? "#FFF2A8" : k > 0.5 ? col : "#9aa4b8"; c.beginPath(); c.arc(x, y, (1 - k) * 3.5 * size + 1, 0, 7); c.fill(); }
+    c.globalAlpha = 1;
+    c.save(); c.translate(w.x, w.y); c.rotate(ang);
+    // body: nose cone + fins, bigger for MIRVs
+    c.shadowColor = col; c.shadowBlur = 10 * size;
+    const grd = c.createLinearGradient(0, -3 * size, 0, 3 * size); grd.addColorStop(0, "#fff"); grd.addColorStop(0.5, shade(col, 0.4)); grd.addColorStop(1, shade(col, -0.3));
+    c.fillStyle = grd; c.beginPath(); c.moveTo(7 * size, 0); c.lineTo(-4 * size, -2.6 * size); c.lineTo(-6 * size, 0); c.lineTo(-4 * size, 2.6 * size); c.closePath(); c.fill();
+    c.fillStyle = shade(col, -0.2); c.beginPath(); c.moveTo(-3 * size, -2 * size); c.lineTo(-7 * size, -4.5 * size); c.lineTo(-5 * size, 0); c.lineTo(-7 * size, 4.5 * size); c.lineTo(-3 * size, 2 * size); c.closePath(); c.fill();
+    c.shadowBlur = 0;
+    // exhaust flame at the tail
+    c.fillStyle = "#FFF2A8"; c.globalAlpha = 0.8 + 0.2 * Math.sin(tick / 2); c.beginPath(); c.moveTo(-6 * size, -1.5 * size); c.lineTo(-10 * size - Math.random() * 4 * size, 0); c.lineTo(-6 * size, 1.5 * size); c.closePath(); c.fill(); c.globalAlpha = 1;
+    if (w.mirv) { // the three heads riding on the bus
+      c.fillStyle = "#fff"; for (const dy of [-2.2, 0, 2.2]) { c.beginPath(); c.moveTo(5, dy * size); c.lineTo(1, dy * size - 1.2); c.lineTo(1, dy * size + 1.2); c.closePath(); c.fill(); }
+    }
+    c.restore();
+    if (w.smart) { c.strokeStyle = col; c.lineWidth = 1; c.globalAlpha = 0.5 + 0.4 * Math.sin(tick / 3); c.beginPath(); c.arc(w.x, w.y, 8 * size, 0, 7); c.stroke(); c.globalAlpha = 1; }
   }
   function drawShop(c, sh) {
     const b = shopBox();
