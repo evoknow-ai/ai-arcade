@@ -69,10 +69,10 @@ export const CATALOG = [
   },
   {
     id: "breakout", title: "Brick Break", genre: "Arcade",
-    tagline: "One ball, one paddle, a wall that fights back. Catch the power-ups.",
-    controls: "Move with the mouse/touch or ←/→. Space or click launches the ball.",
-    ai: "Attract-mode autopilot tracks the ball; bricks get armour on later levels.",
-    shortcuts: [["Mouse / Touch", "Move the paddle"], ["← →", "Move the paddle"], ["Space", "Launch"]],
+    tagline: "Glass, armour, star, explosive, steel and sliding bricks. Lasers, fireball, multiball and more.",
+    controls: "Move with the mouse/touch or ←/→. Space or click launches the ball and fires lasers. Star bricks drop power-ups (a few are traps), explosive bricks take out neighbours, steel bricks need fire or a blast.",
+    ai: "Attract-mode autopilot that chases good drops and dodges bad ones.",
+    shortcuts: [["Mouse / Touch", "Move the paddle"], ["← →", "Move the paddle"], ["Space / Click", "Launch · fire lasers"]],
     load: () => import("./breakout/game.js"), status: "ready",
   },
   {
