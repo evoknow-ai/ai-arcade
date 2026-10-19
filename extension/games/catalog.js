@@ -102,9 +102,9 @@ export const CATALOG = [
   {
     id: "chess", title: "Chess", genre: "Board",
     tagline: "You're White. Full rules, an alpha-beta engine, three strengths, and a hint when you're stuck.",
-    controls: "Click a piece then a highlighted square, or drag it. Pawns promote to queens. H asks the engine for a move.",
+    controls: "Click a piece then a highlighted square, or drag it. Pawns promote to queens. H asks the engine for a move. The side panel logs every move in algebraic notation; Replay plays the game back at 1×–5×, and PGN copies it.",
     ai: "Alpha-beta minimax with piece-square tables; depth 1–3 by difficulty, with deliberate inaccuracy on Beginner.",
-    shortcuts: [["Click, click", "Select, then move"], ["Drag", "Move a piece"], ["H", "Engine suggestion (−50)"]],
+    shortcuts: [["Click, click", "Select, then move"], ["Drag", "Move a piece"], ["H", "Engine suggestion (−50)"], ["▶ Replay", "Replay the game (Space play/pause, ← → step, ↑ ↓ speed)"], ["PGN", "Copy the game as PGN"]],
     load: () => import("./chess/game.js"), status: "ready",
   },
   {

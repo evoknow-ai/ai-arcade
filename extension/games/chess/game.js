@@ -25,16 +25,19 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
   const diff = DIFFICULTY[difficulty] || DIFFICULTY.intermediate;
   let T = null, tick = 0;
   const g = { id: "chess", tps: 60, size: { width: W, height: H }, score: 0, level: 1, autopilot, init, update, render, onInput, onPointer, onPointerDown, onPointerUp, onHover, hud };
-  let S, sel, legal, drag, hover, lastMove, thinking, over, hint, hintTtl, history, captured, msg, msgTtl, flipAnim, popups, moveNo, seen;
+  let S, sel, legal, drag, hover, lastMove, thinking, over, hint, hintTtl, history, captured, msg, msgTtl, flipAnim, popups, moveNo, seen, replay, logScroll;
+  const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
+  const SPEEDS = [1, 2, 3, 5];
 
   // ---------- state ----------
   // S: { b: 64 cells ('' or 'wP'...), turn: 'w'|'b', castle: {wK,wQ,bK,bQ}, ep: index|-1, half: n }
   function init(sh) {
     g.score = 0; g.level = 1;
-    S = { b: parseFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"), turn: "w", castle: { wK: true, wQ: true, bK: true, bQ: true }, ep: -1, half: 0 };
+    S = freshState(); replay = null; logScroll = 0;
     sel = null; legal = []; drag = null; lastMove = null; thinking = 0; over = null; hint = null; hintTtl = 0; history = []; captured = { w: [], b: [] }; popups = []; moveNo = 1; seen = new Map();
     say(g.autopilot ? "Engine vs engine" : "You are White", 120);
   }
+  function freshState() { return { b: parseFen(START), turn: "w", castle: { wK: true, wQ: true, bK: true, bQ: true }, ep: -1, half: 0 }; }
   function parseFen(f) { const b = []; for (const ch of f) { if (ch === "/") continue; if (/\d/.test(ch)) { for (let i = 0; i < +ch; i++) b.push(""); } else b.push((ch === ch.toUpperCase() ? "w" : "b") + ch.toLowerCase()); } return b; }
   function say(t, ttl) { msg = t; msgTtl = ttl; }
   function pop(x, y, text, color) { popups.push({ x, y, text, color, ttl: 70 }); }
@@ -141,19 +144,61 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
     else if (S.half >= 100) { over = "Draw — 50-move rule"; if (!g.autopilot) sh.wallet?.earn(15); }
     else if (seen.get(k) >= 3) { over = "Draw — threefold repetition"; if (!g.autopilot) sh.wallet?.earn(15); }
     else if (inCheck(S, S.turn)) { say("Check", 60); sh.audio.tone({ freq: 660, type: "triangle", dur: 0.15, vol: 0.1 }); }
-    if (over) { say(over, 100000); g._endAt = sh.tick + 240; }
+    if (over) { say(over, 100000); g._endAt = sh.tick + 60 * 20; }
   }
-  function san(st, m) { const pc = st.b[m.from]; const files = "abcdefgh"; const sq = (i) => files[i % 8] + (8 - Math.floor(i / 8)); if (m.castle) return m.castle === "K" ? "O-O" : "O-O-O"; const cap = st.b[m.to] || m.ep ? "x" : ""; return (pc[1] === "p" ? (cap ? files[m.from % 8] : "") : pc[1].toUpperCase()) + cap + sq(m.to) + (m.promo ? "=Q" : ""); }
+  function san(st, m) {
+    const pc = st.b[m.from], files = "abcdefgh", sq = (i) => files[i % 8] + (8 - Math.floor(i / 8));
+    const after = apply(st, m), opp = after.turn, suffix = legalMoves(after).length === 0 ? (inCheck(after, opp) ? "#" : "") : inCheck(after, opp) ? "+" : "";
+    if (m.castle) return (m.castle === "K" ? "O-O" : "O-O-O") + suffix;
+    const cap = st.b[m.to] || m.ep ? "x" : "";
+    if (pc[1] === "p") return (cap ? files[m.from % 8] : "") + cap + sq(m.to) + (m.promo ? "=Q" : "") + suffix;
+    // disambiguate when another piece of the same kind can reach the square
+    const others = legalMoves(st, pc[0]).filter(o => o.to === m.to && o.from !== m.from && st.b[o.from] === pc);
+    let dis = ""; if (others.length) { const sameFile = others.some(o => o.from % 8 === m.from % 8), sameRank = others.some(o => Math.floor(o.from / 8) === Math.floor(m.from / 8)); dis = !sameFile ? files[m.from % 8] : !sameRank ? String(8 - Math.floor(m.from / 8)) : sq(m.from); }
+    return pc[1].toUpperCase() + dis + cap + sq(m.to) + suffix;
+  }
+  function pgn() {
+    let out = `[Event "AI Arcade"]\n[Result "${over ? (over.includes("White wins") ? "1-0" : over.includes("Black wins") ? "0-1" : "1/2-1/2") : "*"}"]\n\n`;
+    history.forEach((h, i) => { if (i % 2 === 0) out += `${i / 2 + 1}. `; out += h.san + " "; });
+    return out.trim();
+  }
+  // ---------- replay ----------
+  function startReplay() { if (!history.length) return; replay = { idx: 0, speed: 1, playing: true, timer: 0, live: { S, lastMove, captured, over, moveNo, seen } }; S = freshState(); lastMove = null; captured = { w: [], b: [] }; sel = null; legal = []; hint = null; say("Replay", 60); }
+  function stopReplay() { if (!replay) return; const l = replay.live; S = l.S; lastMove = l.lastMove; captured = l.captured; over = l.over; moveNo = l.moveNo; seen = l.seen; replay = null; say(over || "Back to the game", 60); }
+  function replayStep(sh) { if (!replay || replay.idx >= history.length) return false; const h = history[replay.idx++]; const n = apply(S, h.m); if (n.captured) captured[n.captured[0]].push(n.captured[1]); S = n; lastMove = h.m; sh.audio.blip(); return true; }
+  function replayBack() { if (!replay || replay.idx === 0) return; const target = replay.idx - 1; S = freshState(); captured = { w: [], b: [] }; lastMove = null; replay.idx = 0; while (replay.idx < target) { const h = history[replay.idx++]; const n = apply(S, h.m); if (n.captured) captured[n.captured[0]].push(n.captured[1]); S = n; lastMove = h.m; } }
+  const PANEL_X = OX + SQ * 8 + 18, PANEL_W = W - (OX + SQ * 8 + 18) - 12;
+  function buttons() { // [label, x, y, w, h, action]
+    const y = OY + SQ * 8 - 26, bw = (PANEL_W - 12) / 4;
+    if (!replay) return [[history.length ? "▶ Replay" : "", PANEL_X, y, PANEL_W / 2 - 3, 22, "replay"], ["PGN", PANEL_X + PANEL_W / 2 + 3, y, PANEL_W / 2 - 3, 22, "pgn"]];
+    return [["⏮", PANEL_X, y, bw, 22, "first"], [replay.playing ? "⏸" : "▶", PANEL_X + bw + 4, y, bw, 22, "toggle"], ["⏭", PANEL_X + (bw + 4) * 2, y, bw, 22, "step"], [`${replay.speed}×`, PANEL_X + (bw + 4) * 3, y, bw, 22, "speed"], ["✕ Exit replay", PANEL_X, y - 28, PANEL_W, 22, "exit"]];
+  }
+  function buttonAt(px, py) { return buttons().find(b => b[0] && px >= b[1] && px <= b[1] + b[3] && py >= b[2] && py <= b[2] + b[4]); }
+  function doButton(b, sh) {
+    const a = b[5];
+    if (a === "replay") startReplay();
+    if (a === "pgn") { const text = pgn(); try { navigator.clipboard?.writeText(text); say("PGN copied to clipboard", 80); } catch { say("Couldn't copy", 60); } }
+    if (a === "exit") stopReplay();
+    if (a === "toggle") replay.playing = !replay.playing;
+    if (a === "step") { replay.playing = false; replayStep(sh); }
+    if (a === "first") { replay.playing = false; S = freshState(); captured = { w: [], b: [] }; lastMove = null; replay.idx = 0; }
+    if (a === "speed") replay.speed = SPEEDS[(SPEEDS.indexOf(replay.speed) + 1) % SPEEDS.length];
+    sh.audio.blip();
+  }
   function select(i) { const pc = S.b[i]; if (pc && pc[0] === S.turn) { sel = i; legal = legalMoves(S).filter(m => m.from === i); } else { sel = null; legal = []; } }
   function tryMove(from, to, sh) { const m = legal.find(m => m.from === from && m.to === to); if (m) { sh.record(1000 + from * 100 + to); playMove(m, sh, false); if (!over) thinking = diff.think; return true; } return false; }
 
   // ---------- input ----------
   function onHover(px, py) { hover = cellAt(px, py); if (drag) { drag.x = px; drag.y = py; } }
-  function onInput(action, sh) { if (action === "hint" && !over && S.turn === "w" && !g.autopilot) { hint = bestMove(S, Math.max(2, diff.depth), 0, sh); hintTtl = 300; g.score = Math.max(0, g.score - 50); } }
-  function onPointerDown(px, py, sh, button) { if (over || thinking > 0 || S.turn !== "w" || g.autopilot || button !== 0) return; const i = cellAt(px, py); if (i < 0) return; const pc = S.b[i]; if (pc && pc[0] === "w") { select(i); drag = { from: i, x: px, y: py, sx: px, sy: py }; } }
+  function onInput(action, sh) {
+    if (replay) { if (action === "action") replay.playing = !replay.playing; if (action === "right") { replay.playing = false; replayStep(sh); } if (action === "left") { replay.playing = false; replayBack(); } if (action === "up") replay.speed = SPEEDS[Math.min(SPEEDS.length - 1, SPEEDS.indexOf(replay.speed) + 1)]; if (action === "down") replay.speed = SPEEDS[Math.max(0, SPEEDS.indexOf(replay.speed) - 1)]; return; }
+    if (action === "hint" && !over && S.turn === "w" && !g.autopilot) { hint = bestMove(S, Math.max(2, diff.depth), 0, sh); hintTtl = 300; g.score = Math.max(0, g.score - 50); }
+  }
+  function onPointerDown(px, py, sh, button) { if (replay || over || thinking > 0 || S.turn !== "w" || g.autopilot || button !== 0) return; const i = cellAt(px, py); if (i < 0) return; const pc = S.b[i]; if (pc && pc[0] === "w") { select(i); drag = { from: i, x: px, y: py, sx: px, sy: py }; } }
   function onPointerUp(px, py, sh) { if (!drag) return; const d = drag; drag = null; if (Math.hypot(px - d.sx, py - d.sy) < 6) return; const to = cellAt(px, py); if (to >= 0) { if (!tryMove(d.from, to, sh)) sh.audio.tone({ freq: 200, type: "square", dur: 0.05, vol: 0.05 }); } }
   function onPointer(px, py, sh) {
-    if (over || thinking > 0 || S.turn !== "w" || g.autopilot) return;
+    const b = buttonAt(px, py); if (b) { doButton(b, sh); return; }
+    if (replay || over || thinking > 0 || S.turn !== "w" || g.autopilot) return;
     const i = cellAt(px, py); if (i < 0) { sel = null; legal = []; return; }
     if (sel !== null && tryMove(sel, i, sh)) return;
     select(i);
@@ -164,6 +209,7 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
     tick = sh.tick;
     if (msgTtl > 0) msgTtl--; if (hintTtl > 0 && --hintTtl === 0) hint = null;
     popups = popups.filter(p => (p.ttl -= 1) > 0);
+    if (replay) { if (replay.playing) { replay.timer += replay.speed; if (replay.timer >= 90) { replay.timer = 0; if (!replayStep(sh)) replay.playing = false; } } return; }
     if (g._endAt && sh.tick >= g._endAt) { g._endAt = null; sh.end(); return; }
     if (over) return;
     if (g.autopilot && thinking === 0) thinking = 25;
@@ -200,10 +246,22 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
     c.font = "20px system-ui,sans-serif"; c.fillStyle = "#fff"; captured.w.forEach((t, i) => c.fillText(GLYPH[t], px + (i % 3) * 20, OY + 28 + Math.floor(i / 3) * 20));
     c.fillStyle = T.textDim; c.font = "11px system-ui,sans-serif"; c.fillText("WHITE", px, OY + SQ * 8 - 50);
     c.font = "20px system-ui,sans-serif"; c.fillStyle = "#1B1F2A"; c.shadowColor = "#fff"; c.shadowBlur = 4; captured.b.forEach((t, i) => c.fillText(GLYPH[t], px + (i % 3) * 20, OY + SQ * 8 - 28 + Math.floor(i / 3) * 20)); c.shadowBlur = 0;
-    c.fillStyle = T.textDim; c.font = "11px ui-monospace,monospace"; const start = Math.max(0, history.length - 16); for (let i = start; i < history.length; i += 2) { const n = Math.floor(i / 2) + 1; c.fillText(`${n}. ${history[i].san}${history[i + 1] ? " " + history[i + 1].san : ""}`, px, OY + 100 + ((i - start) / 2) * 14); }
+    // move log: full game, auto-scrolled to the latest (or to the replay cursor)
+    const logY = OY + 100, logH = OY + SQ * 8 - 60 - logY, rowH = 14, rows = Math.floor(logH / rowH), pairs = Math.ceil(history.length / 2);
+    const cursor = replay ? replay.idx : history.length; const curPair = Math.max(0, Math.ceil(cursor / 2) - 1);
+    const first = Math.max(0, Math.min(pairs - rows, curPair - rows + 2));
+    c.fillStyle = T.textDim; c.font = "11px system-ui,sans-serif"; c.fillText(`MOVES (${history.length})`, px, logY - 12);
+    c.font = "11px ui-monospace,monospace";
+    for (let r = 0; r < rows && first + r < pairs; r++) {
+      const pr = first + r, i = pr * 2, y = logY + r * rowH;
+      c.fillStyle = T.textDim; c.textAlign = "left"; c.fillText(`${pr + 1}.`, px, y);
+      for (const k of [0, 1]) { const h = history[i + k]; if (!h) continue; const cur = replay && i + k === replay.idx - 1; const played = !replay || i + k < replay.idx; c.fillStyle = cur ? "#000" : played ? "#fff" : T.textDim; if (cur) { c.fillStyle = T.marquee; c.fillRect(px + 24 + k * 44 - 2, y - 7, 42, 14); c.fillStyle = "#000"; } c.fillText(h.san, px + 24 + k * 44, y); }
+    }
+    for (const b of buttons()) { if (!b[0]) continue; c.fillStyle = b[5] === "exit" ? T.surface3 : T.marquee; rr(c, b[1], b[2], b[3], b[4], 6); c.fill(); c.fillStyle = b[5] === "exit" ? T.text : "#000"; c.font = "700 11px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(b[0], b[1] + b[3] / 2, b[2] + b[4] / 2 + 1); }
+    if (replay) { c.fillStyle = T.cyan; c.font = "11px system-ui,sans-serif"; c.textAlign = "left"; c.fillText(`Replay ${replay.idx}/${history.length} · ${replay.speed}× · Space play/pause · ←/→ step`, px, OY + SQ * 8 + 14, PANEL_W); }
     for (const p of popups) { const k = 1 - p.ttl / 70; c.globalAlpha = Math.min(1, p.ttl / 15); c.fillStyle = p.color || "#fff"; c.font = "800 14px system-ui,sans-serif"; c.textAlign = "center"; c.shadowColor = "#000"; c.shadowBlur = 6; c.fillText(p.text, p.x, p.y - k * 22); c.shadowBlur = 0; } c.globalAlpha = 1;
-    if (thinking > 0 && S.turn === "b") { c.fillStyle = T.cyan; c.globalAlpha = 0.6 + 0.4 * Math.sin(tick / 5); c.font = "11px system-ui,sans-serif"; c.textAlign = "left"; c.fillText("thinking…", px, OY + SQ * 8 + 14); c.globalAlpha = 1; }
-    if (msgTtl > 0 && msg) { c.font = `800 ${over ? 20 : 16}px 'Chakra Petch',system-ui,sans-serif`; c.textAlign = "center"; c.textBaseline = "middle"; const tw = c.measureText(msg).width + 28; c.fillStyle = T.bg; c.globalAlpha = 0.85; rr(c, OX + SQ * 4 - tw / 2, OY + SQ * 4 - 16, tw, 32, 16); c.fill(); c.globalAlpha = 1; c.fillStyle = T.marquee; c.fillText(msg, OX + SQ * 4, OY + SQ * 4); }
+    if (!replay && thinking > 0 && S.turn === "b") { c.fillStyle = T.cyan; c.globalAlpha = 0.6 + 0.4 * Math.sin(tick / 5); c.font = "11px system-ui,sans-serif"; c.textAlign = "left"; c.fillText("thinking…", px, OY + SQ * 8 + 14); c.globalAlpha = 1; }
+    if (msgTtl > 0 && msg && !replay) { c.font = `800 ${over ? 20 : 16}px 'Chakra Petch',system-ui,sans-serif`; c.textAlign = "center"; c.textBaseline = "middle"; const tw = c.measureText(msg).width + 28; c.fillStyle = T.bg; c.globalAlpha = 0.85; rr(c, OX + SQ * 4 - tw / 2, OY + SQ * 4 - 16, tw, 32, 16); c.fill(); c.globalAlpha = 1; c.fillStyle = T.marquee; c.fillText(msg, OX + SQ * 4, OY + SQ * 4); }
   }
   function piece(c, pc, x, y, scale = 1) {
     const white = pc[0] === "w";
