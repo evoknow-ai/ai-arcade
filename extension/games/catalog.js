@@ -100,6 +100,14 @@ export const CATALOG = [
     load: () => import("./chopper/game.js"), status: "ready",
   },
   {
+    id: "tower", title: "Tower Defence", genre: "Puzzle",
+    tagline: "Five towers, five enemies, three maps. Build beside the path and hold the base for as many waves as you can.",
+    controls: "1–5 picks a tower, click a free tile to build. Click a tower to select it: ↑ upgrades, ↓ sells. Space calls the next wave early for bonus gold. Right-click or Esc cancels.",
+    ai: "Arrow, cannon (splash), frost (slow), tesla (chain lightning) and sniper towers; runners, grunts, armoured tanks, flyers that skip the path, and a boss every five waves.",
+    shortcuts: [["1–5", "Pick a tower"], ["Click", "Build / select"], ["↑", "Upgrade selected"], ["↓", "Sell selected"], ["Space", "Call next wave (bonus)"], ["Esc / Right-click", "Cancel"]],
+    load: () => import("./tower/game.js"), status: "ready",
+  },
+  {
     id: "chess", title: "Chess", genre: "Board",
     tagline: "You're White. Full rules, an alpha-beta engine, three strengths, and a hint when you're stuck.",
     controls: "Click a piece then a highlighted square, or drag it. Pawns promote to queens. H asks the engine for a move. The side panel logs every move in algebraic notation; Replay plays the game back at 1×–5×, and PGN copies it.",

@@ -86,6 +86,7 @@ Names are 2–12 chars, filtered for profanity. Score posts are rate limited per
 - [x] Asteroid Belt — scrolling belt, ore mining for credits, shield and rapid-fire pickups
 - [x] Chopper Command — convoy defence over a scrolling desert with radar, jets, gunships and bombs
 - [x] Lunar Lander — pads with multipliers, fuel that carries over, flight instruments, autopilot
+- [x] Tower Defence — five towers with upgrades, five enemy types incl. flyers and bosses, three rotating maps, early-wave bonus
 - [x] Chess — full rules, alpha-beta engine, drag or click, hints, full SAN move log with per-move times and clocks, replay at 1×–5× or real time, PGN export with timings, post-game summary with blunder/inaccuracy marks, turning point and lead changes
 - [x] Rail Switch — numbered destinations, drag-drawn S-curve crossovers, tap-to-hold trains, day/night with ghost and skull trains, incoming-train headlight glow, crossovers between any lines, four animated scenes that change per level, look-ahead collision warning and hint (inspired by Train Conductor)
 - [x] Invaders — 55-alien formation, pixel-destructible bunkers, saucer, nebula/planet/warp backdrop, CRT finish
