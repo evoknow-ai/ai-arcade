@@ -29,12 +29,13 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
   const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
   const SPEEDS = [1, 2, 3, 5, "real"]; // "real" replays with the recorded thinking times
   let turnStart = 0, clocks = { w: 0, b: 0 };
+  let analysis = null, summary = null, showSummary = false; // post-game annotation
 
   // ---------- state ----------
   // S: { b: 64 cells ('' or 'wP'...), turn: 'w'|'b', castle: {wK,wQ,bK,bQ}, ep: index|-1, half: n }
   function init(sh) {
     g.score = 0; g.level = 1;
-    S = freshState(); replay = null; logScroll = 0; turnStart = 0; clocks = { w: 0, b: 0 };
+    S = freshState(); replay = null; logScroll = 0; turnStart = 0; clocks = { w: 0, b: 0 }; analysis = null; summary = null; showSummary = false;
     sel = null; legal = []; drag = null; lastMove = null; thinking = 0; over = null; hint = null; hintTtl = 0; history = []; captured = { w: [], b: [] }; popups = []; moveNo = 1; seen = new Map();
     say(g.autopilot ? "Engine vs engine" : "You are White", 120);
   }
@@ -131,6 +132,57 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
     for (const m of moves) { const v = -search(apply(st, m), depth - 1, -Infinity, Infinity, sh) + (noise ? (sh.rng.next() - 0.5) * noise : 0); if (v > bestV) { bestV = v; best = m; } }
     return best;
   }
+  function evalPos(st, sh) { // white-view score after a 2-ply look, mate-aware
+    const moves = legalMoves(st); if (!moves.length) return inCheck(st, st.turn) ? (st.turn === "w" ? -99999 : 99999) : 0;
+    const v = search(st, 2, -Infinity, Infinity, sh); return st.turn === "w" ? v : -v;
+  }
+  function writeSummary() {
+    const files = "abcdefgh", sq = (i) => files[i % 8] + (8 - Math.floor(i / 8)), mv = (i) => `${Math.floor(i / 2) + 1}${i % 2 ? "…" : "."} ${history[i].san}`;
+    const winner = over.includes("White wins") ? "w" : over.includes("Black wins") ? "b" : null, loser = winner === "w" ? "b" : winner === "b" ? "w" : null;
+    const name = (c) => c === "w" ? "White" : "Black", you = (c) => (c === "w" && !g.autopilot) ? "you" : name(c);
+    const lines = [];
+    // how it ended
+    if (over.startsWith("Checkmate")) lines.push(`${name(winner)} won by checkmate on move ${Math.ceil(history.length / 2)} (${history[history.length - 1].san}).`);
+    else if (over.startsWith("Stalemate")) lines.push(`The game ended in stalemate on move ${Math.ceil(history.length / 2)} — ${name(S.turn)} had no legal move but was not in check.`);
+    else lines.push(`${over}, after ${Math.ceil(history.length / 2)} moves.`);
+    // material story
+    const matW = captured.b.reduce((a, t) => a + VAL[t], 0), matB = captured.w.reduce((a, t) => a + VAL[t], 0);
+    const pname = { p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen" };
+    if (Math.abs(matW - matB) >= 100) {
+      const ahead = matW > matB ? "w" : "b", took = matW > matB ? captured.b : captured.w;
+      const counts = {}; for (const t of took) counts[t] = (counts[t] || 0) + 1;
+      const list = Object.entries(counts).sort((a, b) => VAL[b[0]] - VAL[a[0]]).map(([t, n]) => `${n} ${pname[t]}${n > 1 ? "s" : ""}`).join(", ");
+      lines.push(`${name(ahead)} finished ${(Math.abs(matW - matB) / 100).toFixed(1).replace(/\.0$/, "")} points of material ahead (took ${list})${!winner ? " but couldn't convert it" : ""}.`);
+    }
+    // decisive mistakes
+    const blunders = history.map((h, i) => ({ i, h })).filter(x => x.h.mark === "??" || x.h.mark === "?").sort((a, b) => a.h.swing - b.h.swing);
+    const first = blunders.find(x => history[x.i].pc[0] === loser) || blunders[0];
+    if (first) {
+      const h = history[first.i], side = h.pc[0], nextCap = history[first.i + 1];
+      let why = "";
+      if (nextCap && history[first.i + 1].san.includes("x")) why = ` — it allowed ${history[first.i + 1].san}${nextCap.pc ? "" : ""}, ${captureDesc(first.i + 1)}`;
+      else if (h.san.includes("x") && history[first.i + 1]?.san.includes("x")) why = ` — the exchange lost material`;
+      lines.push(`The turning point was ${mv(first.i)}${h.mark} by ${you(side)}${why}. The engine's evaluation swung by about ${Math.abs(Math.round(h.swing / 100 * 10) / 10)} pawns.`);
+    } else if (winner) lines.push(`${name(winner)} built the advantage gradually rather than through one big mistake.`);
+    // mistakes count
+    const cnt = (c) => ({ bl: history.filter(h => h.pc[0] === c && h.mark === "??").length, mi: history.filter(h => h.pc[0] === c && h.mark === "?").length });
+    const cw = cnt("w"), cb = cnt("b");
+    lines.push(`Mistakes — White: ${cw.bl} blunder${cw.bl === 1 ? "" : "s"}, ${cw.mi} inaccurac${cw.mi === 1 ? "y" : "ies"}. Black: ${cb.bl} blunder${cb.bl === 1 ? "" : "s"}, ${cb.mi} inaccurac${cb.mi === 1 ? "y" : "ies"}.`);
+    // best move
+    const best = history.map((h, i) => ({ i, h })).filter(x => x.h.mark === "!").sort((a, b) => b.h.swing - a.h.swing)[0];
+    if (best) lines.push(`Best shot: ${mv(best.i)}! by ${you(best.h.pc[0])}, ${captureDesc(best.i)}.`);
+    // when the lead changed hands
+    const ev = analysis.evals; let lead = 0, changes = [];
+    ev.forEach((e, i) => { const l = e > 150 ? 1 : e < -150 ? -1 : 0; if (l !== lead && l !== 0) changes.push([i, l]); if (l !== 0) lead = l; });
+    if (changes.length) lines.push(`${name(changes[0][1] > 0 ? "w" : "b")} first took a clear lead after ${mv(changes[0][0])}${changes.length > 1 ? `; the lead changed hands ${changes.length - 1} more time${changes.length > 2 ? "s" : ""}` : ""}.`);
+    // time
+    const tw = clocks.w, tb = clocks.b, slow = history.slice().sort((a, b) => b.secs - a.secs)[0];
+    lines.push(`Time — White ${fmtT(tw)}, Black ${fmtT(tb)}.${slow && slow.secs > 15 ? ` The longest think was ${fmtT(slow.secs)} on ${slow.san}.` : ""}`);
+    return lines;
+  }
+  function captureDesc(i) { const h = history[i]; if (!h) return "a strong move"; const st = replayTo(i); const cap = st.b[h.m.to]; const pn = { p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" }; return cap ? `winning the ${pn[cap[1]]} on ${"abcdefgh"[h.m.to % 8]}${8 - Math.floor(h.m.to / 8)}` : h.san.includes("+") ? "a check that gained time" : "a strong move"; }
+  function replayTo(i) { let st = freshState(); for (let k = 0; k < i; k++) st = apply(st, history[k].m); return st; }
+  function fmtT(sec) { return sec >= 60 ? `${Math.floor(sec / 60)}m ${Math.floor(sec % 60)}s` : `${sec.toFixed(sec < 10 ? 1 : 0)}s`; }
   function posKey(st) { return st.b.join("") + st.turn + JSON.stringify(st.castle) + st.ep; }
 
   // ---------- play ----------
@@ -146,7 +198,7 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
     else if (S.half >= 100) { over = "Draw — 50-move rule"; if (!g.autopilot) sh.wallet?.earn(15); }
     else if (seen.get(k) >= 3) { over = "Draw — threefold repetition"; if (!g.autopilot) sh.wallet?.earn(15); }
     else if (inCheck(S, S.turn)) { say("Check", 60); sh.audio.tone({ freq: 660, type: "triangle", dur: 0.15, vol: 0.1 }); }
-    if (over) { say(over, 100000); g._endAt = sh.tick + 60 * 20; }
+    if (over) { say(over, 100000); g._endAt = sh.tick + 60 * 20; analysis = { idx: 0, st: freshState(), evals: [], prevEval: 0 }; }
   }
   function san(st, m) {
     const pc = st.b[m.from], files = "abcdefgh", sq = (i) => files[i % 8] + (8 - Math.floor(i / 8));
@@ -172,7 +224,7 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
   const PANEL_X = OX + SQ * 8 + 16, PANEL_W = W - (OX + SQ * 8 + 16) - 10;
   function buttons() { // [label, x, y, w, h, action]
     const y = OY + SQ * 8 - 26, bw = (PANEL_W - 12) / 4;
-    if (!replay) return [[history.length ? "▶ Replay" : "", PANEL_X, y, PANEL_W / 2 - 3, 22, "replay"], ["PGN", PANEL_X + PANEL_W / 2 + 3, y, PANEL_W / 2 - 3, 22, "pgn"]];
+    if (!replay) return [[history.length ? "▶ Replay" : "", PANEL_X, y, PANEL_W / 2 - 3, 22, "replay"], ["PGN", PANEL_X + PANEL_W / 2 + 3, y, PANEL_W / 2 - 3, 22, "pgn"], ...(summary ? [[showSummary ? "Hide summary" : "Game summary", PANEL_X, y - 28, PANEL_W, 22, "summary"]] : [])];
     return [["⏮", PANEL_X, y, bw, 22, "first"], [replay.playing ? "⏸" : "▶", PANEL_X + bw + 4, y, bw, 22, "toggle"], ["⏭", PANEL_X + (bw + 4) * 2, y, bw, 22, "step"], [replay.speed === "real" ? "⏱" : `${replay.speed}×`, PANEL_X + (bw + 4) * 3, y, bw, 22, "speed"], ["✕ Exit replay", PANEL_X, y - 28, PANEL_W, 22, "exit"]];
   }
   function buttonAt(px, py) { return buttons().find(b => b[0] && px >= b[1] && px <= b[1] + b[3] && py >= b[2] && py <= b[2] + b[4]); }
@@ -181,6 +233,7 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
     if (a === "replay") startReplay();
     if (a === "pgn") { const text = pgn(); try { navigator.clipboard?.writeText(text); say("PGN copied to clipboard", 80); } catch { say("Couldn't copy", 60); } }
     if (a === "exit") stopReplay();
+    if (a === "summary") showSummary = !showSummary;
     if (a === "toggle") replay.playing = !replay.playing;
     if (a === "step") { replay.playing = false; replayStep(sh); }
     if (a === "first") { replay.playing = false; S = freshState(); captured = { w: [], b: [] }; lastMove = null; replay.idx = 0; }
@@ -200,6 +253,7 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
   function onPointerUp(px, py, sh) { if (!drag) return; const d = drag; drag = null; if (Math.hypot(px - d.sx, py - d.sy) < 6) return; const to = cellAt(px, py); if (to >= 0) { if (!tryMove(d.from, to, sh)) sh.audio.tone({ freq: 200, type: "square", dur: 0.05, vol: 0.05 }); } }
   function onPointer(px, py, sh) {
     const b = buttonAt(px, py); if (b) { doButton(b, sh); return; }
+    if (showSummary && px < OX + SQ * 8) { showSummary = false; return; }
     if (replay || over || thinking > 0 || S.turn !== "w" || g.autopilot) return;
     const i = cellAt(px, py); if (i < 0) { sel = null; legal = []; return; }
     if (sel !== null && tryMove(sel, i, sh)) return;
@@ -219,7 +273,19 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
       }
       return;
     }
-    if (g._endAt && sh.tick >= g._endAt) { g._endAt = null; sh.end(); return; }
+    if (analysis && analysis.idx < history.length) { // annotate one move per frame so the UI never stalls
+      for (let n = 0; n < 2 && analysis.idx < history.length; n++) {
+        const h = history[analysis.idx], st = analysis.st, mover = st.turn;
+        const before = analysis.prevEval; // white-view eval before this move
+        const after = apply(st, h.m); const ev = evalPos(after, sh);
+        const swing = mover === "w" ? ev - before : before - ev; // negative = the mover lost ground
+        h.eval = ev; h.swing = swing;
+        h.mark = swing <= -300 ? "??" : swing <= -120 ? "?" : (swing >= 120 && after.captured ? "!" : "");
+        analysis.evals.push(ev); analysis.prevEval = ev; analysis.st = after; analysis.idx++;
+      }
+      if (analysis.idx >= history.length) { summary = writeSummary(); showSummary = !g.autopilot; }
+    }
+    if (g._endAt && sh.tick >= g._endAt && !showSummary && !replay) { g._endAt = null; sh.end(); return; }
     if (over) return;
     if (g.autopilot && thinking === 0) thinking = 25;
     if (thinking > 0 && --thinking === 0 && (S.turn === "b" || g.autopilot)) {
@@ -271,6 +337,7 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
         const h = history[i + k]; if (!h) continue; const x = px + 22 + k * 66, cur = replay && i + k === replay.idx - 1, played = !replay || i + k < replay.idx;
         if (cur) { c.fillStyle = T.marquee; c.fillRect(x - 2, y - 7, 64, 14); }
         c.fillStyle = cur ? "#000" : played ? "#fff" : T.textDim; c.font = "700 10px ui-monospace,monospace"; c.fillText(h.san, x, y);
+        if (h.mark) { c.fillStyle = h.mark === "!" ? "#4CD964" : h.mark === "??" ? T.accent : T.marquee; c.fillText(h.mark, x + c.measureText(h.san).width + 1, y); }
         c.fillStyle = cur ? "#333" : T.textDim; c.font = "9px ui-monospace,monospace"; c.textAlign = "right"; c.fillText(fmt(h.secs), x + 60, y); c.textAlign = "left";
       }
     }
@@ -278,8 +345,19 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
     if (replay) { c.fillStyle = T.cyan; c.font = "11px system-ui,sans-serif"; c.textAlign = "left"; c.fillText(`Replay ${replay.idx}/${history.length} · ${replay.speed === "real" ? "real time" : replay.speed + "×"} · Space, ←/→, ↑/↓`, px, OY + SQ * 8 + 14, PANEL_W); }
     for (const p of popups) { const k = 1 - p.ttl / 70; c.globalAlpha = Math.min(1, p.ttl / 15); c.fillStyle = p.color || "#fff"; c.font = "800 14px system-ui,sans-serif"; c.textAlign = "center"; c.shadowColor = "#000"; c.shadowBlur = 6; c.fillText(p.text, p.x, p.y - k * 22); c.shadowBlur = 0; } c.globalAlpha = 1;
     if (!replay && thinking > 0 && S.turn === "b") { c.fillStyle = T.cyan; c.globalAlpha = 0.6 + 0.4 * Math.sin(tick / 5); c.font = "11px system-ui,sans-serif"; c.textAlign = "left"; c.fillText("thinking…", px, OY + SQ * 8 + 14); c.globalAlpha = 1; }
-    if (msgTtl > 0 && msg && !replay) { c.font = `800 ${over ? 20 : 16}px 'Chakra Petch',system-ui,sans-serif`; c.textAlign = "center"; c.textBaseline = "middle"; const tw = c.measureText(msg).width + 28; c.fillStyle = T.bg; c.globalAlpha = 0.85; rr(c, OX + SQ * 4 - tw / 2, OY + SQ * 4 - 16, tw, 32, 16); c.fill(); c.globalAlpha = 1; c.fillStyle = T.marquee; c.fillText(msg, OX + SQ * 4, OY + SQ * 4); }
+    if (showSummary && summary) drawSummary(c);
+    if (analysis && analysis.idx < history.length && over) { c.fillStyle = T.cyan; c.font = "11px system-ui,sans-serif"; c.textAlign = "left"; c.fillText(`analysing… ${analysis.idx}/${history.length}`, PANEL_X, OY + SQ * 8 + 14); }
+    if (msgTtl > 0 && msg && !replay && !showSummary) { c.font = `800 ${over ? 20 : 16}px 'Chakra Petch',system-ui,sans-serif`; c.textAlign = "center"; c.textBaseline = "middle"; const tw = c.measureText(msg).width + 28; c.fillStyle = T.bg; c.globalAlpha = 0.85; rr(c, OX + SQ * 4 - tw / 2, OY + SQ * 4 - 16, tw, 32, 16); c.fill(); c.globalAlpha = 1; c.fillStyle = T.marquee; c.fillText(msg, OX + SQ * 4, OY + SQ * 4); }
   }
+  function drawSummary(c) {
+    const x = OX + 10, y = OY + 10, w = SQ * 8 - 20, h = SQ * 8 - 20;
+    c.fillStyle = "rgba(0,0,0,0.78)"; rr(c, x, y, w, h, 14); c.fill(); c.strokeStyle = "#ffffff22"; c.lineWidth = 1; rr(c, x + 0.5, y + 0.5, w - 1, h - 1, 14); c.stroke();
+    c.fillStyle = T.marquee; c.font = "800 20px 'Chakra Petch',system-ui,sans-serif"; c.textAlign = "left"; c.textBaseline = "top"; c.fillText(over, x + 18, y + 16);
+    c.fillStyle = "#fff"; c.font = "13px system-ui,sans-serif"; let ty = y + 50;
+    for (const line of summary) { ty = wrapText(c, "• " + line, x + 18, ty, w - 36, 18) + 8; }
+    c.fillStyle = T.textDim; c.font = "11px system-ui,sans-serif"; c.textBaseline = "bottom"; c.fillText("?? blunder · ? inaccuracy · ! strong move — click to close", x + 18, y + h - 12); c.textBaseline = "middle";
+  }
+  function wrapText(c, text, x, y, maxW, lh) { const words = text.split(" "); let line = ""; for (const wd of words) { const t = line ? line + " " + wd : wd; if (c.measureText(t).width > maxW && line) { c.fillText(line, x, y); y += lh; line = wd; } else line = t; } if (line) { c.fillText(line, x, y); y += lh; } return y; }
   function piece(c, pc, x, y, scale = 1) {
     const white = pc[0] === "w";
     c.save(); c.translate(x, y); c.scale(scale, scale);
