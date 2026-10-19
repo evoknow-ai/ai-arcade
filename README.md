@@ -79,7 +79,10 @@ Names are 2–12 chars, filtered for profanity. Score posts are rate limited per
 - [x] Mine Field — minesweeper with chords, flag mode, and a logic-solver hint
 - [x] Missile Defence — six cities, MIRVs that burst mid-air, evasive smart warheads, bombers, day/night cycle, depot (placeable batteries, area shields, Patriot launcher, missile truck, flak turret), credits per kill
 - [x] Solitaire — Klondike with drag or click-to-move, draw 1/3, limited passes on Advanced, move hint
-- [ ] Brick Break, Stacker, Rock Field, Maze Chase
+- [x] Brick Break — power-ups (wide, multiball, slow, sticky, +1), armoured bricks, combo scoring
+- [x] Stacker — ghost piece, next preview, DAS, hard drop, combo line clears, AI hint
+- [x] Rock Field — splitting rocks, saucers that shoot back, hyperspace, extra ships
+- [x] Maze Chase — four chaser AIs, power pellets, fruit, queued turns, BFS autopilot
 - [ ] Global leaderboard on eatsleepai.us (server already written; needs PipeDream replay port)
 - [ ] Ghost replay of the #1 run
 - [ ] Chrome Web Store listing
