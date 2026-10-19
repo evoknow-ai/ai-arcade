@@ -47,7 +47,7 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
     onPointer, onHover, onInput, init, update, render, hud,
     autopilot,
   };
-  let board, queue, fluid, flow, countdown, levelTime, target, filledCount, hover, hintCell, hintOn, msg, msgTtl, shake, particles, popups, gasPressure, pendingNextLevel;
+  let board, queue, fluid, flow, countdown, countdownTotal, levelTime, target, filledCount, hover, hintCell, hintOn, msg, msgTtl, shake, particles, popups, gasPressure, pendingNextLevel;
 
   function init(shell) {
     g.score = 0; g.level = 1;
@@ -77,7 +77,7 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
     queue = []; while (queue.length < 5) queue.push(drawPiece(shell));
     target = diff.target + lvl * 2;
     filledCount = 0;
-    countdown = Math.max(5, 16 - lvl + diff.countdown) * 60;
+    countdown = Math.max(5, 16 - lvl + diff.countdown) * 60; countdownTotal = countdown;
     levelTime = diff.levelTime * 60;
     gasPressure = 0;
     flow = { x: sx, y: sy, dir: sd, progress: 0, active: false, cell: board[sy][sx], segTicks: segTicksFor() };
@@ -454,8 +454,8 @@ export default function createPipeDream({ autopilot = false, difficulty = "inter
       c.fillStyle = "rgba(0,0,0,0.45)"; c.fillRect(QUEUE_W, TOP, COLS * CELL, ROWS * CELL);
       c.textAlign = "center"; c.fillStyle = T.marquee; c.font = "800 64px 'Avenir Next Condensed','Arial Narrow',sans-serif";
       c.fillText(s, QUEUE_W + COLS * CELL / 2, TOP + ROWS * CELL / 2 - 10);
-      c.fillStyle = "#FFFFFF"; c.font = "14px system-ui,sans-serif";
-      c.fillText("Place pipes now. Space starts the flow early for a bonus.", QUEUE_W + COLS * CELL / 2, TOP + ROWS * CELL / 2 + 34);
+      const shown = (countdownTotal - countdown) / 60; // seconds since the countdown began
+      if (shown < 4) { c.globalAlpha = Math.min(1, (4 - shown) / 0.6); c.fillStyle = "#FFFFFF"; c.font = "14px system-ui,sans-serif"; c.fillText("Place pipes now. Space starts the flow early for a bonus.", QUEUE_W + COLS * CELL / 2, TOP + ROWS * CELL / 2 + 34); c.globalAlpha = 1; }
     }
     // message
     if (msgTtl > 0 && msg) {
