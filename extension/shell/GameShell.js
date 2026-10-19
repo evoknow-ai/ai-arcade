@@ -26,7 +26,7 @@ export class GameShell {
     this.onHud = onHud || (() => {});
     this.seed = seed ?? (Date.now() >>> 0);
     this.rng = new RNG(this.seed);
-    this.input = new Input(canvas, { tapAction: !game.onPointer });
+    this.input = new Input(canvas, { tapAction: !(game.onPointer || game.onPointerDown) });
     this.audio = new Audio();
     this.paused = false;
     this.ended = false;
@@ -52,6 +52,10 @@ export class GameShell {
     canvas.addEventListener("contextmenu", this._onContext);
     this._onMove = (e) => { if (!this.game.onHover) return; const p = this._toGame(e); this.game.onHover(p.x, p.y, this); };
     this._onLeave = () => this.game.onHover?.(-1, -1, this);
+    this._onDown = (e) => { if (this.paused || this.ended || !this.game.onPointerDown) return; const p = this._toGame(e); this.game.onPointerDown(p.x, p.y, this, e.button); };
+    this._onUp = (e) => { if (this.ended || !this.game.onPointerUp) return; const p = this._toGame(e); this.game.onPointerUp(p.x, p.y, this, e.button); };
+    canvas.addEventListener("pointerdown", this._onDown);
+    canvas.addEventListener("pointerup", this._onUp);
     canvas.addEventListener("click", this._onClick);
     canvas.addEventListener("pointermove", this._onMove);
     canvas.addEventListener("pointerleave", this._onLeave);
@@ -111,7 +115,7 @@ export class GameShell {
   }
   destroy() {
     cancelAnimationFrame(this.raf); this.input.destroy(); window.removeEventListener("resize", this._resize);
-    this.canvas.removeEventListener("click", this._onClick); this.canvas.removeEventListener("contextmenu", this._onContext); this.canvas.removeEventListener("pointermove", this._onMove); this.canvas.removeEventListener("pointerleave", this._onLeave);
+    this.canvas.removeEventListener("click", this._onClick); this.canvas.removeEventListener("pointerdown", this._onDown); this.canvas.removeEventListener("pointerup", this._onUp); this.canvas.removeEventListener("contextmenu", this._onContext); this.canvas.removeEventListener("pointermove", this._onMove); this.canvas.removeEventListener("pointerleave", this._onLeave);
   }
 }
 

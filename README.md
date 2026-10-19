@@ -77,6 +77,8 @@ Names are 2–12 chars, filtered for profanity. Score posts are rate limited per
 - [x] Scorched Ridge — artillery vs AI gunner, 8 weapons (digger, foundation breaker, cluster, guided, smart, drone…), armory with shields/armor/barrel, troops, six scenes with weather and wildlife
 - [x] Credits wallet shared across games (persisted in chrome.storage)
 - [x] Mine Field — minesweeper with chords, flag mode, and a logic-solver hint
+- [x] Missile Defence — six cities, MIRVs, bombers, smart bombs, credits-bought flak turret
+- [x] Solitaire — Klondike with drag or click-to-move, draw 1/3, limited passes on Advanced, move hint
 - [ ] Brick Break, Stacker, Rock Field, Maze Chase
 - [ ] Global leaderboard on eatsleepai.us (server already written; needs PipeDream replay port)
 - [ ] Ghost replay of the #1 run
