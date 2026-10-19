@@ -43,7 +43,7 @@ export default function createScorched({ autopilot = false, difficulty = "interm
   const diff = DIFFICULTY[difficulty] || DIFFICULTY.intermediate;
   let T = null, tick = 0;
   const g = { id: "scorched", tps: 60, size: { width: W, height: H }, score: 0, level: 1, autopilot, init, update, render, onInput, onPointer, onHover, hud };
-  let ground, tanks, turn, shells, wind, particles, popups, msg, msgTtl, shake, phase, phaseT, hoverAim, stars, scene, troops, flock, lightning, rain, farBooms, shop, ammo, weapon, aiAmmo, aiWeapon, lastMiss;
+  let ground, tanks, turn, shells, wind, particles, popups, msg, msgTtl, shake, phase, phaseT, hoverAim, stars, scene, troops, flock, lightning, rain, farBooms, shop, ammo, weapon, aiAmmo, aiWeapon, lastMiss, tracers, bunkers, flags, reinforceT;
 
   function init(sh) {
     g.score = 0; g.level = 1; particles = []; popups = []; shake = 0; shells = []; tanks = null;
@@ -65,8 +65,8 @@ export default function createScorched({ autopilot = false, difficulty = "interm
       { x: ex, y: ground[ex | 0], angle: 120, power: 60, hp: diff.hp + g.level * 8, maxHp: diff.hp + g.level * 8, name: "AI", ai: true, shield: 0 },
     ];
     flatten(px); flatten(ex);
-    troops = [];
-    for (const [i, t] of tanks.entries()) for (let n = 0; n < 4; n++) troops.push({ side: i, x: t.x + (i ? -1 : 1) * (26 + n * 14), dir: i ? -1 : 1, step: sh.rng.next() * 6, alive: true, rest: sh.rng.int(120) });
+    troops = []; tracers = []; bunkers = []; flags = []; reinforceT = 0;
+    for (const [i, t] of tanks.entries()) for (let n = 0; n < 4; n++) troops.push(mkTroop(sh, i, t.x + (i ? -1 : 1) * (26 + n * 14), n === 1));
     turn = 0; shells = []; phase = "aim"; phaseT = 0; hoverAim = null; shop = null;
     wind = (sh.rng.next() * 2 - 1) * diff.windMax;
     flock = null; lightning = 0; rain = scene.rain ? Array.from({ length: 140 }, () => [sh.rng.next() * W, sh.rng.next() * H, 6 + sh.rng.next() * 6]) : null; farBooms = [];
@@ -74,6 +74,9 @@ export default function createScorched({ autopilot = false, difficulty = "interm
     say(`Ridge ${g.level} · ${sceneName()} · your shot`, 140);
   }
   function sceneName() { return { morning: "morning", noon: "high noon", evening: "evening", night: "full moon", "night-sm": "starry night", storm: "storm" }[scene.id]; }
+  function mkTroop(sh, side, x, mg) { return { side, x, dir: side ? -1 : 1, step: sh.rng.next() * 6, alive: true, rest: sh.rng.int(60), hp: 3, weapon: mg ? "mg" : "rifle", cool: 30 + sh.rng.int(60), state: "advance", digT: 0, calm: 0, burst: 0, flash: 0 }; }
+  function groundAt(x) { return ground[Math.max(0, Math.min(W - 1, x | 0))]; }
+  function isHilltop(x) { const y = groundAt(x); for (let d = 12; d <= 48; d += 12) if (groundAt(x - d) < y + 6 || groundAt(x + d) < y + 6) return false; return true; }
   function flatten(x) { const h = ground[x | 0]; for (let i = -10; i <= 10; i++) if (x + i >= 0 && x + i < W) ground[x + i | 0] = Math.max(ground[x + i | 0], h); }
   function say(t, ttl) { msg = t; msgTtl = ttl; }
   function pop(x, y, text, color) { popups.push({ x, y, text, color, ttl: 60 }); }
@@ -157,7 +160,7 @@ export default function createScorched({ autopilot = false, difficulty = "interm
     popups = popups.filter(p => (p.ttl -= 1) > 0);
     ambience(sh);
     for (const t of tanks) { const gy = ground[Math.max(0, Math.min(W - 1, t.x | 0))]; if (t.y < gy - 0.5) { t.y = Math.min(gy, t.y + 2.5); if (t.y === gy) damage(t, 10, sh, "fall"); } else t.y = gy; }
-    for (const s of troops) { if (!s.alive) continue; if (s.rest > 0) { s.rest--; continue; } s.step += 0.15; s.x += s.dir * 0.35; const home = tanks[s.side].x; if (Math.abs(s.x - home) > 90 || s.x < 4 || s.x > W - 4) s.dir *= -1; if (sh.rng.next() < 0.004) s.rest = 60 + sh.rng.int(120); }
+    updateTroops(sh);
     if (shop) return;
 
     if (phase === "aim") {
@@ -220,9 +223,73 @@ export default function createScorched({ autopilot = false, difficulty = "interm
         else pop(t.x, t.y - 44, "own goal", T?.textDim);
       }
     }
+    bunkers = bunkers.filter(b => Math.hypot(b.x - x, groundAt(b.x) - y) > def.r + 8); flags = flags.filter(f => Math.hypot(f.x - x, groundAt(f.x) - y) > def.r + 4);
     for (const tr of troops) { if (tr.alive && Math.hypot(tr.x - x, ground[Math.max(0, Math.min(W - 1, tr.x | 0))] - 6 - y) < def.r + 6) { tr.alive = false; if (tr.side !== s.owner && s.owner === 0) { g.score += 25; dealt += 2; } for (let k = 0; k < 6; k++) particles.push({ x: tr.x, y, vx: (sh.rng.next() - 0.5) * 3, vy: -sh.rng.next() * 3, ttl: 30, color: T?.accent }); } }
     if (s.owner === 0 && dealt > 0) earn(sh, Math.round(dealt * 1.2), x, y - 38);
     noteMiss(s, miss);
+  }
+  // ---------- infantry ----------
+  // Morale follows the tanks: the side whose tank is healthier pushes forward, the other falls back.
+  // Troops duck when shot at, fire rifles or machine guns at enemies in range, dig in when things are
+  // quiet, plant flags on hilltops, and get reinforcements while their tank is winning.
+  function updateTroops(sh) {
+    tracers = tracers.filter(t => (t.ttl -= 1) > 0);
+    const hpRatio = (i) => Math.max(0, tanks[i].hp) / tanks[i].maxHp;
+    const morale = [hpRatio(0) - hpRatio(1), hpRatio(1) - hpRatio(0)];
+    if (++reinforceT > 600) { reinforceT = 0; for (const i of [0, 1]) { const n = troops.filter(t => t.alive && t.side === i).length; if ((morale[i] > 0.15 && n < 6) || n < 3) { troops.push(mkTroop(sh, i, tanks[i].x + (i ? 1 : -1) * 20, sh.rng.next() < 0.3)); pop(tanks[i].x, tanks[i].y - 54, "reinforcements", T?.textDim); } } }
+    for (const s of troops) {
+      if (!s.alive) continue;
+      if (s.flash > 0) s.flash--; if (s.cool > 0) s.cool--; s.calm++;
+      const enemies = troops.filter(o => o.alive && o.side !== s.side);
+      const nearest = enemies.sort((a, b) => Math.abs(a.x - s.x) - Math.abs(b.x - s.x))[0];
+      const dist = nearest ? Math.abs(nearest.x - s.x) : Infinity;
+      const enemyTank = tanks[1 - s.side], tankDist = Math.abs(enemyTank.x - s.x);
+      const own = tanks[s.side], m = morale[s.side];
+      const inBunker = bunkers.find(b => b.side === s.side && Math.abs(b.x - s.x) < 10);
+      const toward = Math.sign(enemyTank.x - s.x) || s.dir;
+      // decide state
+      if (s.underFire > 0) { s.underFire--; s.state = "duck"; }
+      else if (dist < (s.weapon === "mg" ? 170 : 130) || tankDist < 110) s.state = "fire";
+      else if (m < -0.2 && (s.x - own.x) * toward > 20) s.state = "retreat";
+      else if (m > 0.2) s.state = "advance";
+      else if (s.calm > 240 && !inBunker && !bunkers.some(b => Math.abs(b.x - s.x) < 40) && sh.rng.next() < 0.01) { s.state = "dig"; s.digT = 150; }
+      else if (s.state !== "dig") s.state = Math.abs(s.x - own.x) > 110 && (s.x - own.x) * toward > 0 ? "retreat" : "hold";
+      // act
+      if (s.state === "advance") { s.dir = toward; s.step += 0.18; s.x += s.dir * 0.45; }
+      else if (s.state === "retreat") { s.dir = toward; s.step += 0.22; s.x -= toward * 0.5; if (Math.abs(s.x - own.x) < 24) s.state = "hold"; }
+      else if (s.state === "hold") { if (sh.rng.next() < 0.01) s.dir *= -1; s.step += 0.04; s.x += s.dir * 0.08; }
+      else if (s.state === "dig") { s.step += 0.3; if (--s.digT <= 0) { bunkers.push({ side: s.side, x: s.x, hp: 3 }); s.state = "hold"; s.calm = 0; } }
+      else if (s.state === "fire") {
+        s.dir = nearest && dist < 170 ? Math.sign(nearest.x - s.x) : toward;
+        if (s.cool <= 0) {
+          const target = nearest && dist < 170 ? nearest : null;
+          const shots = s.weapon === "mg" ? 4 : 1; s.burst = shots; s.cool = s.weapon === "mg" ? 90 + sh.rng.int(60) : 45 + sh.rng.int(50);
+          s.flash = shots * 4;
+          const gy = groundAt(s.x) - 8;
+          for (let k = 0; k < shots; k++) {
+            if (target) {
+              const cover = bunkers.some(b => b.side === target.side && Math.abs(b.x - target.x) < 10) ? 0.5 : 1, duck = target.state === "duck" ? 0.6 : 1;
+              const hit = sh.rng.next() < (s.weapon === "mg" ? 0.1 : 0.2) * cover * duck;
+              const tx = target.x + (hit ? 0 : (sh.rng.next() - 0.5) * 24), ty = groundAt(target.x) - 8 + (hit ? 0 : (sh.rng.next() - 0.5) * 16);
+              tracers.push({ x0: s.x + s.dir * 6, y0: gy, x1: tx, y1: ty, ttl: 8 + k * 3, side: s.side });
+              target.underFire = 90; target.calm = 0;
+              if (hit && --target.hp <= 0) { target.alive = false; burst(target.x, groundAt(target.x) - 6, 8, T?.accent, sh); if (s.side === 0) { g.score += 25; pop(target.x, groundAt(target.x) - 24, "+25", T?.marquee); } }
+            } else {
+              const ty = enemyTank.y - 8 + (sh.rng.next() - 0.5) * 10;
+              tracers.push({ x0: s.x + s.dir * 6, y0: gy, x1: enemyTank.x + (sh.rng.next() - 0.5) * 14, y1: ty, ttl: 8 + k * 3, side: s.side });
+              if (sh.rng.next() < 0.35) { enemyTank.hp -= 1; if (s.side === 0) g.score += 2; }
+            }
+          }
+          sh.audio.tone({ freq: s.weapon === "mg" ? 420 : 260, type: "square", dur: s.weapon === "mg" ? 0.18 : 0.05, slide: -120, vol: 0.04 });
+        }
+      }
+      else if (s.state === "duck") { s.step += 0.02; }
+      s.x = Math.max(6, Math.min(W - 6, s.x));
+      // flags on hilltops
+      if ((s.state === "advance" || s.state === "hold") && isHilltop(s.x) && !flags.some(f => Math.abs(f.x - s.x) < 60)) { flags.push({ x: s.x, side: s.side, t: 0 }); if (s.side === 0) { g.score += 50; pop(s.x, groundAt(s.x) - 40, "Flag +50", T?.marquee); } else pop(s.x, groundAt(s.x) - 40, "enemy flag", T?.textDim); sh.audio.tone({ freq: 700, type: "triangle", dur: 0.12, vol: 0.06 }); }
+      for (const f of flags) if (f.side !== s.side && Math.abs(f.x - s.x) < 8) { f.side = s.side; if (s.side === 0) { g.score += 75; pop(f.x, groundAt(f.x) - 40, "Captured +75", T?.marquee); } }
+    }
+    for (const f of flags) f.t++;
   }
   function damage(t, dmg, sh, why) {
     let real = dmg;
@@ -292,7 +359,10 @@ export default function createScorched({ autopilot = false, difficulty = "interm
     c.fillStyle = tg; c.beginPath(); c.moveTo(0, H); for (let x = 0; x < W; x++) c.lineTo(x, ground[x]); c.lineTo(W, H); c.closePath(); c.fill();
     c.strokeStyle = shade(scene.tint, 0.55); c.lineWidth = 2; c.beginPath(); for (let x = 0; x < W; x++) c.lineTo(x, ground[x]); c.stroke();
     if (rain) { c.strokeStyle = "rgba(200,220,255,0.35)"; c.lineWidth = 1; c.beginPath(); for (const [x, y, v] of rain) { c.moveTo(x, y); c.lineTo(x + wind * 1.5, y + v); } c.stroke(); }
+    for (const b of bunkers) { const y = groundAt(b.x); c.fillStyle = "#5E4A2E"; c.beginPath(); c.ellipse(b.x, y + 1, 16, 7, 0, Math.PI, 0); c.fill(); c.fillStyle = "#8A6E48"; for (let i = -2; i <= 2; i++) { c.beginPath(); c.ellipse(b.x + i * 6, y - 4 - (Math.abs(i) % 2) * 3, 4, 2.5, 0, 0, 7); c.fill(); } }
+    for (const f of flags) { const y = groundAt(f.x), col = f.side === 0 ? T.cyan : T.accent; c.strokeStyle = "#ddd"; c.lineWidth = 1.5; c.beginPath(); c.moveTo(f.x, y); c.lineTo(f.x, y - 26); c.stroke(); c.fillStyle = col; c.beginPath(); c.moveTo(f.x, y - 26); for (let i = 0; i <= 12; i++) c.lineTo(f.x + i, y - 26 + Math.sin(tick / 6 + i / 2) * 1.5 + i * 0.1); for (let i = 12; i >= 0; i--) c.lineTo(f.x + i, y - 18 + Math.sin(tick / 6 + i / 2) * 1.5); c.closePath(); c.fill(); }
     for (const s of troops) if (s.alive) drawTroop(c, s);
+    for (const t of tracers) { c.strokeStyle = t.side === 0 ? "#FFF2A8" : "#FFB0B0"; c.globalAlpha = Math.min(1, t.ttl / 6); c.lineWidth = 1.2; c.shadowColor = c.strokeStyle; c.shadowBlur = 6; c.beginPath(); c.moveTo(t.x0, t.y0); c.lineTo(t.x1, t.y1); c.stroke(); c.shadowBlur = 0; } c.globalAlpha = 1;
     for (const [i, t] of tanks.entries()) drawTank(c, t, i === 0 ? T.cyan : T.accent, i === turn && phase === "aim");
     if (turn === 0 && phase === "aim" && !g.autopilot && !shop && !WEAPONS[weapon].drone) {
       const t = tanks[0], a = hoverAim || { angle: t.angle, power: t.power };
@@ -363,11 +433,21 @@ export default function createScorched({ autopilot = false, difficulty = "interm
     c.globalAlpha = 1;
   }
   function drawTroop(c, s) {
-    const y = ground[Math.max(0, Math.min(W - 1, s.x | 0))], col = s.side === 0 ? T.cyan : T.accent, bob = Math.abs(Math.sin(s.step)) * 1.5;
-    c.fillStyle = shade(col, -0.3); c.fillRect(s.x - 1.5, y - 8 - bob, 3, 5);
-    c.fillStyle = col; c.beginPath(); c.arc(s.x, y - 10 - bob, 2, 0, 7); c.fill();
-    c.strokeStyle = shade(col, -0.3); c.lineWidth = 1.2; c.beginPath(); c.moveTo(s.x, y - 3 - bob); c.lineTo(s.x - 2 * Math.sin(s.step * 2), y); c.moveTo(s.x, y - 3 - bob); c.lineTo(s.x + 2 * Math.sin(s.step * 2), y); c.stroke();
-    c.beginPath(); c.moveTo(s.x, y - 7 - bob); c.lineTo(s.x + s.dir * 5, y - 8 - bob); c.stroke();
+    const y = groundAt(s.x), col = s.side === 0 ? T.cyan : T.accent, moving = s.state === "advance" || s.state === "retreat";
+    const duck = s.state === "duck" || s.state === "fire" ? 3 : 0, bob = moving ? Math.abs(Math.sin(s.step)) * 1.5 : 0, h = 10 - duck;
+    c.strokeStyle = shade(col, -0.3); c.lineWidth = 1.2;
+    // legs: walking, kneeling, or standing
+    c.beginPath(); if (moving) { c.moveTo(s.x, y - 3 - bob); c.lineTo(s.x - 2.5 * Math.sin(s.step * 2), y); c.moveTo(s.x, y - 3 - bob); c.lineTo(s.x + 2.5 * Math.sin(s.step * 2), y); } else if (duck) { c.moveTo(s.x, y - 3); c.lineTo(s.x - s.dir * 3, y); c.moveTo(s.x, y - 3); c.lineTo(s.x + s.dir * 2, y - 1); c.lineTo(s.x + s.dir * 3, y); } else { c.moveTo(s.x - 1, y - 3); c.lineTo(s.x - 1.5, y); c.moveTo(s.x + 1, y - 3); c.lineTo(s.x + 1.5, y); } c.stroke();
+    c.fillStyle = shade(col, -0.3); c.fillRect(s.x - 1.5, y - h + 2 - bob, 3, h - 5); // body
+    c.fillStyle = col; c.beginPath(); c.arc(s.x, y - h - bob, 2, 0, 7); c.fill(); // head
+    c.fillStyle = shade(col, -0.5); c.fillRect(s.x - 2.5, y - h - 2 - bob, 5, 1.5); // helmet brim
+    if (s.state === "dig") { c.strokeStyle = "#ccc"; c.beginPath(); const a = Math.sin(s.step) * 0.8; c.moveTo(s.x, y - 6); c.lineTo(s.x + s.dir * (6 + a * 2), y - 2 + a * 3); c.stroke(); c.fillStyle = "#8A6E48"; c.fillRect(s.x + s.dir * 8 - 2, y - 2, 4, 2); }
+    else { // weapon
+      c.strokeStyle = s.weapon === "mg" ? "#ddd" : shade(col, -0.3); c.lineWidth = s.weapon === "mg" ? 1.8 : 1.2; c.beginPath(); c.moveTo(s.x, y - h + 3 - bob); c.lineTo(s.x + s.dir * (s.weapon === "mg" ? 7 : 5), y - h + 2 - bob); c.stroke();
+      if (s.weapon === "mg" && duck) { c.strokeStyle = "#999"; c.lineWidth = 1; c.beginPath(); c.moveTo(s.x + s.dir * 6, y - h + 2); c.lineTo(s.x + s.dir * 6, y); c.stroke(); } // bipod
+      if (s.flash > 0 && s.flash % 4 > 1) { c.fillStyle = "#FFF2A8"; c.shadowColor = "#FFF2A8"; c.shadowBlur = 8; c.beginPath(); c.arc(s.x + s.dir * (s.weapon === "mg" ? 9 : 7), y - h + 2 - bob, 2.2, 0, 7); c.fill(); c.shadowBlur = 0; }
+    }
+    if (s.hp < 2) { c.fillStyle = T.accent; c.fillRect(s.x - 3, y - h - 6 - bob, 6, 1.5); }
   }
   function drawTank(c, t, color, active) {
     const x = t.x, y = t.y;

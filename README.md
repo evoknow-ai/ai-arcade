@@ -74,7 +74,7 @@ Names are 2–12 chars, filtered for profanity. Score posts are rate limited per
 - [x] PipeDream — level timer, start-now bonus, time bombs, water/oil/gas, reservoirs, valves, Magic Blocks, Timer Blocks, AI hint
 - [x] Themes (Aurora, Midnight, Sunset, Terminal) and Beginner / Intermediate / Advanced difficulty
 - [x] Snake with AI autopilot
-- [x] Scorched Ridge — artillery vs AI gunner, 8 weapons (digger, foundation breaker, cluster, guided, smart, drone…), armory with shields/armor/barrel, troops, six scenes with weather and wildlife
+- [x] Scorched Ridge — artillery vs AI gunner, 8 weapons (digger, foundation breaker, cluster, guided, smart, drone…), armory with shields/armor/barrel, infantry that advance, duck, fire rifles and MGs, dig bunkers, plant flags and retreat on morale, six scenes with weather and wildlife
 - [x] Credits wallet shared across games (persisted in chrome.storage)
 - [x] Mine Field — minesweeper with chords, flag mode, and a logic-solver hint
 - [x] Missile Defence — six cities, MIRVs that burst mid-air, evasive smart warheads, bombers, day/night cycle, depot (placeable batteries, area shields, Patriot launcher, missile truck, flak turret), credits per kill
