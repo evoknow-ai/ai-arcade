@@ -86,6 +86,7 @@ Names are 2–12 chars, filtered for profanity. Score posts are rate limited per
 - [x] Asteroid Belt — scrolling belt, ore mining for credits, shield and rapid-fire pickups
 - [x] Chopper Command — convoy defence over a scrolling desert with radar, jets, gunships and bombs
 - [x] Lunar Lander — pads with multipliers, fuel that carries over, flight instruments, autopilot
+- [x] Rail Switch — four lines, trains from both ends with variable coal cars, clickable crossovers, look-ahead collision warning and hint
 - [x] Invaders — 55-alien formation, pixel-destructible bunkers, saucer, nebula/planet/warp backdrop, CRT finish
 - [ ] Global leaderboard on eatsleepai.us (server already written; needs PipeDream replay port)
 - [ ] Ghost replay of the #1 run

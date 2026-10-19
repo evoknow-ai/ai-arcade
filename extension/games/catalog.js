@@ -100,6 +100,14 @@ export const CATALOG = [
     load: () => import("./chopper/game.js"), status: "ready",
   },
   {
+    id: "rails", title: "Rail Switch", genre: "Puzzle",
+    tagline: "Four lines, trains from both ends, coal cars of every length. Open the right crossover before they meet.",
+    controls: "Click a diamond to open or close that crossover. \\ sends eastbound trains down and westbound up; / does the reverse. H shows the fix for the next collision.",
+    ai: "A look-ahead simulator warns of collisions and finds the one switch that prevents them.",
+    shortcuts: [["Click / Tap", "Toggle a crossover"], ["H", "Show the saving switch (−25)"]],
+    load: () => import("./rails/game.js"), status: "ready",
+  },
+  {
     id: "invaders", title: "Invaders", genre: "Shooter",
     tagline: "Fifty-five aliens, four crumbling bunkers, one cannon. They get faster as they fall.",
     controls: "←/→ move, Space fires (one shot in the air at a time). Shoot bombs, chip through your own bunkers, bag the saucer.",
