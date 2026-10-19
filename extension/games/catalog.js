@@ -100,6 +100,14 @@ export const CATALOG = [
     load: () => import("./chopper/game.js"), status: "ready",
   },
   {
+    id: "invaders", title: "Invaders", genre: "Shooter",
+    tagline: "Fifty-five aliens, four crumbling bunkers, one cannon. They get faster as they fall.",
+    controls: "←/→ move, Space fires (one shot in the air at a time). Shoot bombs, chip through your own bunkers, bag the saucer.",
+    ai: "Attract-mode gunner that dodges bombs and leads the formation.",
+    shortcuts: [["← →", "Move"], ["Space", "Fire"]],
+    load: () => import("./invaders/game.js"), status: "ready",
+  },
+  {
     id: "lander", title: "Lunar Lander", genre: "Arcade",
     tagline: "Set it down upright and slow on a pad. Higher multipliers sit on smaller, rougher ground.",
     controls: "←/→ rotate, ↑ or Space thrust. Fuel carries over; each landing tops it up a little.",
