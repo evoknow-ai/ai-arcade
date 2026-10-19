@@ -83,6 +83,9 @@ Names are 2–12 chars, filtered for profanity. Score posts are rate limited per
 - [x] Stacker — ghost piece, next preview, DAS, hard drop, combo line clears, AI hint
 - [x] Rock Field — splitting rocks, saucers that shoot back, hyperspace, extra ships
 - [x] Maze Chase — four chaser AIs, power pellets, fruit, queued turns, BFS autopilot
+- [x] Asteroid Belt — scrolling belt, ore mining for credits, shield and rapid-fire pickups
+- [x] Chopper Command — convoy defence over a scrolling desert with radar, jets, gunships and bombs
+- [x] Lunar Lander — pads with multipliers, fuel that carries over, flight instruments, autopilot
 - [ ] Global leaderboard on eatsleepai.us (server already written; needs PipeDream replay port)
 - [ ] Ghost replay of the #1 run
 - [ ] Chrome Web Store listing
