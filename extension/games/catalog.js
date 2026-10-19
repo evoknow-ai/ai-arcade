@@ -109,10 +109,10 @@ export const CATALOG = [
   },
   {
     id: "rails", title: "Rail Switch", genre: "Puzzle",
-    tagline: "Four lines, trains from both ends, coal cars of every length. Draw crossovers before they meet.",
-    controls: "Drag from a spot on one line to a spot on the line above or below to lay a crossover; a train arriving at one end and heading toward the other takes the curve. Click a crossover's diamond to remove it. H sketches the crossover that prevents the next collision.",
-    ai: "A look-ahead simulator warns of collisions and designs the one crossover that prevents them.",
-    shortcuts: [["Drag", "Lay a crossover between two lines"], ["Click ×", "Remove a crossover"], ["H", "Sketch the saving crossover (−25)"]],
+    tagline: "Every train shows the line it must leave on. Draw the crossovers, hold trains with a tap, survive the graveyard shift.",
+    controls: "Drag between two neighbouring lines to lay a crossover. Tap a train to hold it, tap again to release. Click a crossover's × to remove it. Deliver on the numbered line for points; at night ghost trains pay double, the skull train triple but can't be stopped. H sketches a collision fix.",
+    ai: "A look-ahead simulator warns of collisions and designs the crossover (or the hold) that prevents them.",
+    shortcuts: [["Drag", "Lay a crossover between two lines"], ["Tap a train", "Hold / release it"], ["Click ×", "Remove a crossover"], ["H", "Sketch the saving crossover (−25)"]],
     load: () => import("./rails/game.js"), status: "ready",
   },
   {

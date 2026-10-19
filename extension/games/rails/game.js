@@ -1,8 +1,8 @@
-// Rail Switch — four lines, trains from both ends. Engines pull a random number of coal cars at their
-// own speed; two trains on one line will meet or rear-end. Draw your own crossovers: drag from a spot
-// on one line to a spot on the line above or below. A train that reaches a crossover's end while
-// heading toward the other end takes the curve. Click a crossover's diamond to remove it. Every car
-// that reaches the far end pays. H sketches the crossover that prevents the next collision.
+// Rail Switch — four lines, trains from both ends. Every train shows the line it must leave on; draw
+// crossovers (drag between two neighbouring lines) to route it there, and tap a train to hold it —
+// tap again to send it on. Two trains on one line will meet or rear-end. Night brings the graveyard
+// shift: everything runs faster, ghost trains race through, and the skull train can't be stopped.
+// Cars delivered on the right line pay (with a combo); wrong line pays nothing and breaks the combo.
 const W = 640, H = 420, TRACKS = 4, TY = [84, 164, 244, 324], MIN_SPAN = 40, MAX_SPAN = 220, ENG = 34, CAR = 26;
 const DIFFICULTY = {
   beginner:     { name: "Beginner",     every: 300, speed: [0.7, 1.4], cars: [2, 5], lives: 4 },
@@ -15,12 +15,14 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
   const diff = DIFFICULTY[difficulty] || DIFFICULTY.intermediate;
   let T = null, tick = 0;
   const g = { id: "rails", tps: 60, size: { width: W, height: H }, score: 0, level: 1, autopilot, init, update, render, onInput, onPointer, onPointerDown, onPointerUp, onHover, hud };
-  let switches, trains, spawnT, delivered, lives, particles, popups, smoke, msg, msgTtl, shake, hover, hint, hintTtl, combo, warn, drag;
+  let switches, trains, spawnT, delivered, lives, particles, popups, smoke, msg, msgTtl, shake, hover, hint, hintTtl, combo, warn, drag, dayT, misrouted, stars;
+  const DAY = 60 * 100, NIGHT = 60 * 45; // seconds × 60
+  const isNight = () => dayT % (DAY + NIGHT) >= DAY;
 
   function init(sh) {
     g.score = 0; g.level = 1; delivered = 0; lives = diff.lives; particles = []; popups = []; smoke = []; shake = 0; combo = 0; hint = null; hintTtl = 0; warn = null;
-    switches = []; drag = null;
-    trains = []; spawnT = 60; say("Drag between two lines to lay a crossover", 150);
+    switches = []; drag = null; dayT = 0; misrouted = 0; stars = Array.from({ length: 60 }, () => [sh.rng.next() * W, sh.rng.next() * 60, sh.rng.next()]);
+    trains = []; spawnT = 60; say("Route each train to its numbered line", 150);
   }
   function say(t, ttl) { msg = t; msgTtl = ttl; }
   function pop(x, y, text, color) { popups.push({ x, y, text, color, ttl: 55 }); }
@@ -28,16 +30,20 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
     const dir = sh.rng.next() < 0.5 ? 1 : -1, track = sh.rng.int(TRACKS);
     const x0 = dir > 0 ? -40 : W + 40;
     if (trains.some(tr => Math.round(tr.y) === track && Math.abs(tr.x - x0) < 260)) return; // entrance busy
-    const speed = diff.speed[0] + sh.rng.next() * (diff.speed[1] - diff.speed[0]) + g.level * 0.05;
+    let speed = diff.speed[0] + sh.rng.next() * (diff.speed[1] - diff.speed[0]) + g.level * 0.05;
     const cars = diff.cars[0] + sh.rng.int(diff.cars[1] - diff.cars[0] + 1);
-    trains.push({ x: x0, y: track, dir, speed, cars, trail: [], color: [T?.accent, T?.marquee, "#B57BFF", "#4CD964", "#FFB454"][sh.rng.int(5)], hue: sh.rng.next(), cross: null, passed: new Set() });
+    let dest = sh.rng.next() < 0.7 ? (track + 1 + sh.rng.int(TRACKS - 1)) % TRACKS : track;
+    const night = isNight(); let kind = "coal";
+    if (night) { speed *= 1.35; const r = sh.rng.next(); if (r < 0.3) { kind = "ghost"; speed *= 1.3; } else if (r < 0.42) kind = "skull"; }
+    trains.push({ x: x0, y: track, dir, speed, cur: speed, cars, dest, kind, trail: [], color: kind === "ghost" ? "#9FE8FF" : kind === "skull" ? "#2A2A32" : [T?.accent, T?.marquee, "#B57BFF", "#4CD964", "#FFB454"][sh.rng.int(5)], cross: null, passed: new Set(), stopped: false });
   }
   // ---------- input ----------
   const mid = (s) => [(s.x0 + s.x1) / 2, (TY[s.l0] + TY[s.l1]) / 2];
   function switchAt(px, py) { for (const s of switches) { const [mx, my] = mid(s); if (Math.abs(px - mx) < 18 && Math.abs(py - my) < 18) return s; } return null; }
   function lineAt(py) { for (let i = 0; i < TRACKS; i++) if (Math.abs(py - TY[i]) < 22) return i; return -1; }
   function onHover(px, py) { hover = switchAt(px, py); if (drag) { drag.x = px; drag.y = py; } }
-  function onPointerDown(px, py, sh, button) { if (button !== 0 || switchAt(px, py)) return; const l = lineAt(py); if (l < 0) return; drag = { x0: px, l0: l, x: px, y: py }; }
+  function trainAt(px, py) { for (const tr of trains) { const [a0, a1] = span(tr); if (px >= a0 - 4 && px <= a1 + 4 && Math.abs(py - (TY[0] + tr.y * 80)) < 20) return tr; } return null; }
+  function onPointerDown(px, py, sh, button) { if (button !== 0 || switchAt(px, py) || trainAt(px, py)) return; const l = lineAt(py); if (l < 0) return; drag = { x0: px, l0: l, x: px, y: py }; }
   function onPointerUp(px, py, sh) {
     if (!drag) return; const d = drag; drag = null;
     const l1 = lineAt(py); const span = Math.abs(px - d.x0);
@@ -48,7 +54,10 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
     switches.push(sw); sh.record(1000 + Math.round(sw.x0) * 1000 + sw.l0 * 100 + Math.round(Math.abs(sw.x1 - sw.x0)) * (sw.x1 > sw.x0 ? 1 : -1)); sh.audio.tone({ freq: 520, type: "triangle", dur: 0.08, vol: 0.08 });
   }
   function overlaps(a, b) { const lines = new Set([a.l0, a.l1]); if (!lines.has(b.l0) && !lines.has(b.l1)) return false; const [a0, a1] = [Math.min(a.x0, a.x1), Math.max(a.x0, a.x1)], [b0, b1] = [Math.min(b.x0, b.x1), Math.max(b.x0, b.x1)]; return a0 < b1 + 10 && b0 < a1 + 10; }
-  function onPointer(px, py, sh) { const s = switchAt(px, py); if (!s) return; if (trains.some(tr => tr.cross && tr.cross.sw === s)) { say("A train is on it", 50); return; } switches.splice(switches.indexOf(s), 1); sh.record(2000 + Math.round(px)); sh.audio.tone({ freq: 380, type: "triangle", dur: 0.06, vol: 0.08 }); }
+  function onPointer(px, py, sh) {
+    const tr = trainAt(px, py);
+    if (tr) { if (tr.kind === "skull") { say("The skull train doesn't stop", 60); sh.audio.hit(); return; } tr.stopped = !tr.stopped; sh.record(3000 + Math.round(px)); sh.audio.tone({ freq: tr.stopped ? 240 : 420, type: "sawtooth", dur: 0.15, slide: tr.stopped ? -100 : 120, vol: 0.08 }); return; }
+    const s = switchAt(px, py); if (!s) return; if (trains.some(tr => tr.cross && tr.cross.sw === s)) { say("A train is on it", 50); return; } switches.splice(switches.indexOf(s), 1); sh.record(2000 + Math.round(px)); sh.audio.tone({ freq: 380, type: "triangle", dur: 0.06, vol: 0.08 }); }
   function onInput(action, sh) { if (action === "hint") { const h = findFix(); if (h) { hint = h; hintTtl = 240; g.score = Math.max(0, g.score - 25); } else say(warn ? "No single crossover fixes it" : "Nothing on a collision course", 80); } }
   // does a train at (x, line, dir) enter crossover s this step?
   function entry(s, line, dir, xPrev, xNow) {
@@ -62,19 +71,26 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
   // ---------- simulation ----------
   function update(sh) {
     tick = sh.tick;
+    const wasNight = isNight(); dayT++; if (isNight() !== wasNight) say(isNight() ? "Graveyard shift — ghost trains, no stopping the skull" : "Dawn — back to normal speed", 150);
     if (msgTtl > 0) msgTtl--; if (shake > 0) shake--; if (hintTtl > 0 && --hintTtl === 0) hint = null;
     particles = particles.filter(p => (p.ttl -= 1) > 0); for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vy += 0.08; }
     smoke = smoke.filter(p => (p.ttl -= 1) > 0); for (const p of smoke) { p.x += p.vx; p.y -= 0.5; p.r += 0.15; }
     popups = popups.filter(p => (p.ttl -= 1) > 0);
     if (--spawnT <= 0) { spawnT = Math.max(90, diff.every - g.level * 10); spawn(sh); }
     for (const tr of trains) {
-      tr.x += tr.dir * tr.speed;
-      if (!tr.cross) for (const s of switches) { if (tr.passed.has(s)) continue; const e = entry(s, Math.round(tr.y), tr.dir, tr.x - tr.dir * tr.speed, tr.x); if (e) { tr.cross = e; tr.passed.add(s); sh.audio.tone({ freq: 200, type: "sawtooth", dur: 0.1, vol: 0.05 }); break; } }
+      const want = tr.stopped ? 0 : tr.speed; tr.cur += (want - tr.cur) * 0.06; if (Math.abs(tr.cur - want) < 0.01) tr.cur = want;
+      if (tr.cur < 0.01) { tr.trail.unshift([tr.x, tr.y]); if (tr.trail.length > 900) tr.trail.pop(); continue; }
+      tr.x += tr.dir * tr.cur;
+      if (!tr.cross) for (const s of switches) { if (tr.passed.has(s)) continue; const e = entry(s, Math.round(tr.y), tr.dir, tr.x - tr.dir * tr.cur, tr.x); if (e) { tr.cross = e; tr.passed.add(s); sh.audio.tone({ freq: 200, type: "sawtooth", dur: 0.1, vol: 0.05 }); break; } }
       if (tr.cross) { const k = Math.min(1, Math.abs(tr.x - tr.cross.x0) / Math.abs(tr.cross.x1 - tr.cross.x0)); tr.y = tr.cross.from + (tr.cross.to - tr.cross.from) * ease(k); if (k >= 1) { tr.y = tr.cross.to; tr.cross = null; } }
       tr.trail.unshift([tr.x, tr.y]); if (tr.trail.length > 900) tr.trail.pop();
       if (tick % 4 === 0) smoke.push({ x: tr.x + tr.dir * 8, y: TY[0] + (tr.y) * 80 - 20, vx: -tr.dir * 0.3 + (sh.rng.next() - 0.5) * 0.3, r: 2, ttl: 40 });
       const tail = tr.x - tr.dir * (ENG + tr.cars * CAR);
-      if ((tr.dir > 0 && tail > W + 10) || (tr.dir < 0 && tail < -10)) { tr.done = true; delivered += tr.cars; combo++; const pts = tr.cars * 10 * Math.min(5, combo); g.score += pts; sh.wallet?.earn(tr.cars); pop(tr.dir > 0 ? W - 60 : 60, TY[Math.round(tr.y)] - 24, `+${pts} · ${tr.cars} cr`, T?.marquee); sh.audio.eat(); if (delivered >= g.level * 40) { g.level++; say(`Level ${g.level} · faster`, 90); sh.audio.levelUp(); } }
+      if ((tr.dir > 0 && tail > W + 10) || (tr.dir < 0 && tail < -10)) {
+        tr.done = true; const line = Math.round(tr.y), ex = tr.dir > 0 ? W - 60 : 60;
+        if (line === tr.dest) { delivered += tr.cars; combo++; const mult = tr.kind === "skull" ? 3 : tr.kind === "ghost" ? 2 : 1; const pts = tr.cars * 10 * Math.min(5, combo) * mult; g.score += pts; sh.wallet?.earn(tr.cars * mult); pop(ex, TY[line] - 24, `+${pts} · ${tr.cars * mult} cr`, T?.marquee); sh.audio.eat(); if (delivered >= g.level * 40) { g.level++; say(`Level ${g.level} · faster`, 90); sh.audio.levelUp(); } }
+        else { misrouted++; combo = 0; pop(ex, TY[line] - 24, `wrong line (wanted ${tr.dest + 1})`, T?.accent); sh.audio.hit(); }
+      }
     }
     trains = trains.filter(t => !t.done);
     // collisions: same line, bodies overlap
@@ -84,11 +100,17 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
       if (a0 < b1 && b0 < a1) { crash(a, b, sh); return; }
     }
     warn = predict();
-    if (g.autopilot && tick % 20 === 0) { const h = findFix(); if (h) { switches.push(h); sh.audio.tone({ freq: 520, type: "triangle", dur: 0.08, vol: 0.08 }); } }
+    if (g.autopilot && tick % 20 === 0) {
+      const h = findFix(); if (h) switches.push(h);
+      else if (warn && warn.t < 150) { const slow = warn.a.kind === "skull" ? warn.b : warn.b.kind === "skull" ? warn.a : (warn.a.speed < warn.b.speed ? warn.a : warn.b); if (slow.kind !== "skull") slow.stopped = true; }
+      for (const tr of trains) if (tr.stopped && !(warn && (warn.a === tr || warn.b === tr))) tr.stopped = false;
+      // route toward the destination line when nothing is in the way
+      for (const tr of trains) { const line = Math.round(tr.y); if (tr.cross || line === tr.dest) continue; const to = line + Math.sign(tr.dest - line); const x0 = tr.x + tr.dir * 60, x1 = x0 + tr.dir * 80; if (x0 < 10 || x0 > W - 10 || x1 < 10 || x1 > W - 10) continue; const cand = { x0, l0: line, x1, l1: to }; if (switches.some(o => overlaps(o, cand))) continue; const p = predict([...switches, cand]); if (!p || p.t > 300) { switches.push(cand); break; } }
+    }
     // autopilot tidies: remove crossovers no train is near, so old ones don't cause surprises
     if (g.autopilot && tick % 90 === 0) switches = switches.filter(s => trains.some(tr => tr.cross?.sw === s || Math.abs(tr.x - (s.x0 + s.x1) / 2) < 200));
   }
-  function span(tr) { const head = tr.x + tr.dir * 6, tail = tr.x - tr.dir * (ENG + tr.cars * CAR); return [Math.min(head, tail), Math.max(head, tail)]; }
+  function span(tr) { const head = tr.x + tr.dir * 17, tail = tr.x - tr.dir * (ENG + tr.cars * CAR); return [Math.min(head, tail), Math.max(head, tail)]; }
   function crash(a, b, sh) {
     const x = (a.x + b.x) / 2, y = TY[Math.round(a.y)];
     for (let i = 0; i < 70; i++) { const an = sh.rng.next() * 6.28, sp = 0.5 + sh.rng.next() * 4; particles.push({ x, y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp - 2, ttl: 30 + sh.rng.int(40), color: i % 3 ? T?.accent : T?.marquee }); }
@@ -98,7 +120,7 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
   }
   // simulate ahead (no switch changes) and return the first pair that would collide, with time-to-impact
   function predict(sw = switches, horizon = 420) { const sim = trains;
-    const st = sim.map(tr => ({ x: tr.x, y: tr.y, dir: tr.dir, speed: tr.speed, cars: tr.cars, cross: tr.cross ? { ...tr.cross } : null, passed: new Set(tr.passed), ref: tr }));
+    const st = sim.map(tr => ({ x: tr.x, y: tr.y, dir: tr.dir, speed: tr.stopped ? 0 : tr.speed, cars: tr.cars, cross: tr.cross ? { ...tr.cross } : null, passed: new Set(tr.passed), ref: tr }));
     for (let t = 0; t < horizon; t += 3) {
       for (const tr of st) {
         tr.x += tr.dir * tr.speed * 3;
@@ -130,13 +152,16 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
     }
     return best ? best.cand : null;
   }
-  function hud() { return `${diff.name} · level ${g.level} · ${delivered} cars delivered · ${lives} strikes · ${trains.length} trains${combo > 1 ? ` · combo ×${Math.min(5, combo)}` : ""}`; }
+  function hud() { return `${diff.name} · ${isNight() ? "night" : "day"} · level ${g.level} · ${delivered} delivered · ${misrouted} misrouted · ${lives} strikes${combo > 1 ? ` · combo ×${Math.min(5, combo)}` : ""}`; }
 
   // ---------- render ----------
   function render(c, sh) {
     T = sh.theme; tick = sh.tick;
     c.save(); if (shake > 0) c.translate((Math.random() - 0.5) * shake * 0.6, (Math.random() - 0.5) * shake * 0.6);
-    const bg = c.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, shade(T.bg, 0.05)); bg.addColorStop(1, shade(T.bgGlow1, -0.5)); c.fillStyle = bg; c.fillRect(-10, -10, W + 20, H + 20);
+    const night = isNight();
+    const bg = c.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, night ? "#03040B" : shade(T.bg, 0.05)); bg.addColorStop(1, night ? "#070A16" : shade(T.bgGlow1, -0.5)); c.fillStyle = bg; c.fillRect(-10, -10, W + 20, H + 20);
+    if (night) { c.fillStyle = "#fff"; for (const [x, y, z] of stars) { c.globalAlpha = 0.3 + 0.6 * Math.abs(Math.sin(tick / 40 + z * 9)); c.fillRect(x, 30 + y * 0.4, z > 0.8 ? 2 : 1, z > 0.8 ? 2 : 1); } c.globalAlpha = 1; c.shadowColor = "#F4F1E6"; c.shadowBlur = 24; c.fillStyle = "#EEEBE0"; c.beginPath(); c.arc(W - 70, 52, 13, 0, 7); c.fill(); c.shadowBlur = 0; }
+    else { const k = (dayT % (DAY + NIGHT)) / DAY; const a = Math.max(0, 1 - Math.abs(k - 0.5) * 2) * 0.12; c.fillStyle = `rgba(255,220,150,${a})`; c.fillRect(0, 0, W, H); }
     // ballast strips + rails
     for (let t = 0; t < TRACKS; t++) {
       const y = TY[t];
@@ -153,6 +178,13 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
     if (warn && warn.t < 240) { const y = TY[Math.round(warn.y)]; c.globalAlpha = 0.25 + 0.25 * Math.sin(tick / 4); c.fillStyle = T.accent; c.fillRect(Math.max(0, warn.x - 60), y - 16, 120, 32); c.globalAlpha = 1; c.fillStyle = T.accent; c.font = "800 11px system-ui,sans-serif"; c.textAlign = "center"; c.fillText(`⚠ ${Math.ceil(warn.t / 60)}s`, Math.max(40, Math.min(W - 40, warn.x)), y - 26); }
     for (const p of smoke) { c.globalAlpha = Math.min(0.35, p.ttl / 80); c.fillStyle = "#cfd3da"; c.beginPath(); c.arc(p.x, p.y, p.r, 0, 7); c.fill(); } c.globalAlpha = 1;
     for (const tr of trains) drawTrain(c, tr);
+    for (const tr of trains) { // destination badge above the engine
+      const bx = tr.x, by = TY[0] + tr.y * 80 - 34, onLine = Math.round(tr.y) === tr.dest;
+      if (bx < -10 || bx > W + 10) continue;
+      c.fillStyle = tr.kind === "skull" ? "#111" : onLine ? "#4CD964" : T.marquee; c.shadowColor = c.fillStyle; c.shadowBlur = 10; c.beginPath(); c.arc(bx, by, 10, 0, 7); c.fill(); c.shadowBlur = 0;
+      c.fillStyle = tr.kind === "skull" ? "#fff" : "#000"; c.font = "800 12px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(tr.kind === "skull" ? "☠" : tr.dest + 1, bx, by + 1);
+      if (tr.stopped || tr.cur < tr.speed * 0.5) { c.fillStyle = T.accent; c.font = "800 9px system-ui,sans-serif"; c.fillText(tr.stopped ? "HOLD" : "…", bx, by - 16); }
+    }
     for (const p of particles) { c.globalAlpha = Math.min(1, p.ttl / 15); c.fillStyle = p.color; c.fillRect(p.x, p.y, 3, 3); } c.globalAlpha = 1;
     for (const p of popups) { const k = 1 - p.ttl / 55; c.globalAlpha = Math.min(1, p.ttl / 12); c.fillStyle = p.color || "#fff"; c.font = "800 13px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.shadowColor = "#000"; c.shadowBlur = 5; c.fillText(p.text, p.x, p.y - k * 18); c.shadowBlur = 0; } c.globalAlpha = 1;
     c.fillStyle = "rgba(0,0,0,0.35)"; c.fillRect(0, 0, W, 28);
@@ -179,6 +211,7 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
   }
   function headingAt(tr, back) { const [xa, ya] = posAt(tr, Math.max(0, back - 8)), [xb, yb] = posAt(tr, back + 8); return Math.atan2((ya - yb) * 80 * tr.dir, Math.max(1, Math.abs(xa - xb))); }
   function drawTrain(c, tr) {
+    c.save(); if (tr.kind === "ghost") c.globalAlpha = 0.55 + 0.15 * Math.sin(tick / 6);
     for (let k = tr.cars - 1; k >= 0; k--) {
       const back = ENG / 2 + CAR / 2 + k * CAR; const [cx, ty] = posAt(tr, back); const cy = TY[0] + ty * 80;
       c.save(); c.translate(cx, cy); c.rotate(headingAt(tr, back)); const x = 0, y = 0;
@@ -198,8 +231,8 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
     c.fillStyle = "#222"; c.fillRect(x + d * 8 - 2, y - 18, 4, 8); // stack
     c.fillStyle = "#1a1a1a"; c.beginPath(); c.arc(x - 9, y + 4, 3, 0, 7); c.arc(x, y + 4, 3, 0, 7); c.arc(x + 9, y + 4, 3, 0, 7); c.fill();
     c.fillStyle = "#FFF4CC"; c.shadowColor = "#FFF4CC"; c.shadowBlur = 12; c.beginPath(); c.arc(x + d * (ENG / 2 - 2), y - 4, 2.5, 0, 7); c.fill(); c.shadowBlur = 0;
-    c.globalAlpha = 0.12; c.fillStyle = "#FFF4CC"; c.beginPath(); c.moveTo(x + d * ENG / 2, y - 6); c.lineTo(x + d * (ENG / 2 + 70), y - 16); c.lineTo(x + d * (ENG / 2 + 70), y + 6); c.closePath(); c.fill(); c.globalAlpha = 1;
-    c.restore();
+    c.globalAlpha *= isNight() ? 0.3 : 0.12; c.fillStyle = "#FFF4CC"; c.beginPath(); c.moveTo(x + d * ENG / 2, y - 6); c.lineTo(x + d * (ENG / 2 + 90), y - 18); c.lineTo(x + d * (ENG / 2 + 90), y + 8); c.closePath(); c.fill();
+    c.restore(); c.restore();
   }
   function rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
   function shade(hex, amt) { if (!hex || hex[0] !== "#" || hex.length < 7) return hex; const ch = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)); return "#" + ch.map(v => Math.max(0, Math.min(255, Math.round(amt > 0 ? v + (255 - v) * amt : v * (1 + amt)))).toString(16).padStart(2, "0")).join(""); }
