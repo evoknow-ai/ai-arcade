@@ -27,13 +27,14 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
   const g = { id: "chess", tps: 60, size: { width: W, height: H }, score: 0, level: 1, autopilot, init, update, render, onInput, onPointer, onPointerDown, onPointerUp, onHover, hud };
   let S, sel, legal, drag, hover, lastMove, thinking, over, hint, hintTtl, history, captured, msg, msgTtl, flipAnim, popups, moveNo, seen, replay, logScroll;
   const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
-  const SPEEDS = [1, 2, 3, 5];
+  const SPEEDS = [1, 2, 3, 5, "real"]; // "real" replays with the recorded thinking times
+  let turnStart = 0, clocks = { w: 0, b: 0 };
 
   // ---------- state ----------
   // S: { b: 64 cells ('' or 'wP'...), turn: 'w'|'b', castle: {wK,wQ,bK,bQ}, ep: index|-1, half: n }
   function init(sh) {
     g.score = 0; g.level = 1;
-    S = freshState(); replay = null; logScroll = 0;
+    S = freshState(); replay = null; logScroll = 0; turnStart = 0; clocks = { w: 0, b: 0 };
     sel = null; legal = []; drag = null; lastMove = null; thinking = 0; over = null; hint = null; hintTtl = 0; history = []; captured = { w: [], b: [] }; popups = []; moveNo = 1; seen = new Map();
     say(g.autopilot ? "Engine vs engine" : "You are White", 120);
   }
@@ -136,7 +137,8 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
   function playMove(m, sh, byEngine) {
     const pc = S.b[m.from]; const n = apply(S, m);
     if (n.captured) { captured[n.captured[0]].push(n.captured[1]); const v = VAL[n.captured[1]]; if (pc[0] === "w" && !g.autopilot) { g.score += v; pop(sqX(m.to) + SQ / 2, sqY(m.to), "+" + v, T?.marquee); } sh.audio.hit(); } else sh.audio.blip();
-    history.push({ m, pc, san: san(S, m) }); S = n; lastMove = m; sel = null; legal = []; hint = null;
+    const secs = Math.max(0, (tick - turnStart)) / 60; clocks[pc[0]] += secs; turnStart = tick;
+    history.push({ m, pc, san: san(S, m), secs }); S = n; lastMove = m; sel = null; legal = []; hint = null;
     if (S.turn === "w") moveNo++;
     const k = posKey(S); seen.set(k, (seen.get(k) || 0) + 1);
     const moves = legalMoves(S);
@@ -159,7 +161,7 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
   }
   function pgn() {
     let out = `[Event "AI Arcade"]\n[Result "${over ? (over.includes("White wins") ? "1-0" : over.includes("Black wins") ? "0-1" : "1/2-1/2") : "*"}"]\n\n`;
-    history.forEach((h, i) => { if (i % 2 === 0) out += `${i / 2 + 1}. `; out += h.san + " "; });
+    history.forEach((h, i) => { if (i % 2 === 0) out += `${i / 2 + 1}. `; out += `${h.san} {${h.secs.toFixed(1)}s} `; });
     return out.trim();
   }
   // ---------- replay ----------
@@ -167,11 +169,11 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
   function stopReplay() { if (!replay) return; const l = replay.live; S = l.S; lastMove = l.lastMove; captured = l.captured; over = l.over; moveNo = l.moveNo; seen = l.seen; replay = null; say(over || "Back to the game", 60); }
   function replayStep(sh) { if (!replay || replay.idx >= history.length) return false; const h = history[replay.idx++]; const n = apply(S, h.m); if (n.captured) captured[n.captured[0]].push(n.captured[1]); S = n; lastMove = h.m; sh.audio.blip(); return true; }
   function replayBack() { if (!replay || replay.idx === 0) return; const target = replay.idx - 1; S = freshState(); captured = { w: [], b: [] }; lastMove = null; replay.idx = 0; while (replay.idx < target) { const h = history[replay.idx++]; const n = apply(S, h.m); if (n.captured) captured[n.captured[0]].push(n.captured[1]); S = n; lastMove = h.m; } }
-  const PANEL_X = OX + SQ * 8 + 18, PANEL_W = W - (OX + SQ * 8 + 18) - 12;
+  const PANEL_X = OX + SQ * 8 + 16, PANEL_W = W - (OX + SQ * 8 + 16) - 10;
   function buttons() { // [label, x, y, w, h, action]
     const y = OY + SQ * 8 - 26, bw = (PANEL_W - 12) / 4;
     if (!replay) return [[history.length ? "▶ Replay" : "", PANEL_X, y, PANEL_W / 2 - 3, 22, "replay"], ["PGN", PANEL_X + PANEL_W / 2 + 3, y, PANEL_W / 2 - 3, 22, "pgn"]];
-    return [["⏮", PANEL_X, y, bw, 22, "first"], [replay.playing ? "⏸" : "▶", PANEL_X + bw + 4, y, bw, 22, "toggle"], ["⏭", PANEL_X + (bw + 4) * 2, y, bw, 22, "step"], [`${replay.speed}×`, PANEL_X + (bw + 4) * 3, y, bw, 22, "speed"], ["✕ Exit replay", PANEL_X, y - 28, PANEL_W, 22, "exit"]];
+    return [["⏮", PANEL_X, y, bw, 22, "first"], [replay.playing ? "⏸" : "▶", PANEL_X + bw + 4, y, bw, 22, "toggle"], ["⏭", PANEL_X + (bw + 4) * 2, y, bw, 22, "step"], [replay.speed === "real" ? "⏱" : `${replay.speed}×`, PANEL_X + (bw + 4) * 3, y, bw, 22, "speed"], ["✕ Exit replay", PANEL_X, y - 28, PANEL_W, 22, "exit"]];
   }
   function buttonAt(px, py) { return buttons().find(b => b[0] && px >= b[1] && px <= b[1] + b[3] && py >= b[2] && py <= b[2] + b[4]); }
   function doButton(b, sh) {
@@ -191,7 +193,7 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
   // ---------- input ----------
   function onHover(px, py) { hover = cellAt(px, py); if (drag) { drag.x = px; drag.y = py; } }
   function onInput(action, sh) {
-    if (replay) { if (action === "action") replay.playing = !replay.playing; if (action === "right") { replay.playing = false; replayStep(sh); } if (action === "left") { replay.playing = false; replayBack(); } if (action === "up") replay.speed = SPEEDS[Math.min(SPEEDS.length - 1, SPEEDS.indexOf(replay.speed) + 1)]; if (action === "down") replay.speed = SPEEDS[Math.max(0, SPEEDS.indexOf(replay.speed) - 1)]; return; }
+    if (replay) { if (action === "action") replay.playing = !replay.playing; if (action === "right") { replay.playing = false; replayStep(sh); } if (action === "left") { replay.playing = false; replayBack(); } if (action === "up") replay.speed = SPEEDS[Math.min(SPEEDS.length - 1, SPEEDS.indexOf(replay.speed) + 1)]; if (action === "down") replay.speed = SPEEDS[Math.max(0, SPEEDS.indexOf(replay.speed) - 1)]; if (action !== "action") replay.timer = 0; return; }
     if (action === "hint" && !over && S.turn === "w" && !g.autopilot) { hint = bestMove(S, Math.max(2, diff.depth), 0, sh); hintTtl = 300; g.score = Math.max(0, g.score - 50); }
   }
   function onPointerDown(px, py, sh, button) { if (replay || over || thinking > 0 || S.turn !== "w" || g.autopilot || button !== 0) return; const i = cellAt(px, py); if (i < 0) return; const pc = S.b[i]; if (pc && pc[0] === "w") { select(i); drag = { from: i, x: px, y: py, sx: px, sy: py }; } }
@@ -209,7 +211,14 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
     tick = sh.tick;
     if (msgTtl > 0) msgTtl--; if (hintTtl > 0 && --hintTtl === 0) hint = null;
     popups = popups.filter(p => (p.ttl -= 1) > 0);
-    if (replay) { if (replay.playing) { replay.timer += replay.speed; if (replay.timer >= 90) { replay.timer = 0; if (!replayStep(sh)) replay.playing = false; } } return; }
+    if (replay) {
+      if (replay.playing) {
+        const next = history[replay.idx];
+        if (replay.speed === "real") { replay.timer++; if (next && replay.timer >= Math.max(12, next.secs * 60)) { replay.timer = 0; if (!replayStep(sh)) replay.playing = false; } else if (!next) replay.playing = false; }
+        else { replay.timer += replay.speed; if (replay.timer >= 90) { replay.timer = 0; if (!replayStep(sh)) replay.playing = false; } }
+      }
+      return;
+    }
     if (g._endAt && sh.tick >= g._endAt) { g._endAt = null; sh.end(); return; }
     if (over) return;
     if (g.autopilot && thinking === 0) thinking = 25;
@@ -241,7 +250,7 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
     for (let i = 0; i < 64; i++) { if (!S.b[i] || (drag && drag.from === i && Math.hypot(drag.x - drag.sx, drag.y - drag.sy) >= 6)) continue; piece(c, S.b[i], sqX(i) + SQ / 2, sqY(i) + SQ / 2); }
     if (drag && Math.hypot(drag.x - drag.sx, drag.y - drag.sy) >= 6) { c.save(); c.shadowColor = "#000"; c.shadowBlur = 20; c.shadowOffsetY = 8; piece(c, S.b[drag.from], drag.x, drag.y, 1.1); c.restore(); }
     // side panel: captured pieces + move list
-    const px = OX + SQ * 8 + 20;
+    const px = PANEL_X;
     c.fillStyle = T.textDim; c.font = "11px system-ui,sans-serif"; c.textAlign = "left"; c.fillText("BLACK", px, OY + 6);
     c.font = "20px system-ui,sans-serif"; c.fillStyle = "#fff"; captured.w.forEach((t, i) => c.fillText(GLYPH[t], px + (i % 3) * 20, OY + 28 + Math.floor(i / 3) * 20));
     c.fillStyle = T.textDim; c.font = "11px system-ui,sans-serif"; c.fillText("WHITE", px, OY + SQ * 8 - 50);
@@ -250,15 +259,23 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
     const logY = OY + 100, logH = OY + SQ * 8 - 60 - logY, rowH = 14, rows = Math.floor(logH / rowH), pairs = Math.ceil(history.length / 2);
     const cursor = replay ? replay.idx : history.length; const curPair = Math.max(0, Math.ceil(cursor / 2) - 1);
     const first = Math.max(0, Math.min(pairs - rows, curPair - rows + 2));
-    c.fillStyle = T.textDim; c.font = "11px system-ui,sans-serif"; c.fillText(`MOVES (${history.length})`, px, logY - 12);
-    c.font = "11px ui-monospace,monospace";
+    const fmt = (sec) => sec >= 60 ? `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}` : `${sec.toFixed(sec < 10 ? 1 : 0)}s`;
+    const liveTurn = !over && !replay ? (tick - turnStart) / 60 : 0;
+    c.fillStyle = T.textDim; c.font = "11px system-ui,sans-serif"; c.fillText(`MOVES (${history.length})`, px, logY - 26);
+    c.fillStyle = "#fff"; c.font = "11px ui-monospace,monospace"; c.fillText(`♔ ${fmt(clocks.w + (S.turn === "w" ? liveTurn : 0))}   ♚ ${fmt(clocks.b + (S.turn === "b" ? liveTurn : 0))}`, px, logY - 12);
+    c.font = "10px ui-monospace,monospace";
     for (let r = 0; r < rows && first + r < pairs; r++) {
       const pr = first + r, i = pr * 2, y = logY + r * rowH;
       c.fillStyle = T.textDim; c.textAlign = "left"; c.fillText(`${pr + 1}.`, px, y);
-      for (const k of [0, 1]) { const h = history[i + k]; if (!h) continue; const cur = replay && i + k === replay.idx - 1; const played = !replay || i + k < replay.idx; c.fillStyle = cur ? "#000" : played ? "#fff" : T.textDim; if (cur) { c.fillStyle = T.marquee; c.fillRect(px + 24 + k * 44 - 2, y - 7, 42, 14); c.fillStyle = "#000"; } c.fillText(h.san, px + 24 + k * 44, y); }
+      for (const k of [0, 1]) {
+        const h = history[i + k]; if (!h) continue; const x = px + 22 + k * 66, cur = replay && i + k === replay.idx - 1, played = !replay || i + k < replay.idx;
+        if (cur) { c.fillStyle = T.marquee; c.fillRect(x - 2, y - 7, 64, 14); }
+        c.fillStyle = cur ? "#000" : played ? "#fff" : T.textDim; c.font = "700 10px ui-monospace,monospace"; c.fillText(h.san, x, y);
+        c.fillStyle = cur ? "#333" : T.textDim; c.font = "9px ui-monospace,monospace"; c.textAlign = "right"; c.fillText(fmt(h.secs), x + 60, y); c.textAlign = "left";
+      }
     }
     for (const b of buttons()) { if (!b[0]) continue; c.fillStyle = b[5] === "exit" ? T.surface3 : T.marquee; rr(c, b[1], b[2], b[3], b[4], 6); c.fill(); c.fillStyle = b[5] === "exit" ? T.text : "#000"; c.font = "700 11px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(b[0], b[1] + b[3] / 2, b[2] + b[4] / 2 + 1); }
-    if (replay) { c.fillStyle = T.cyan; c.font = "11px system-ui,sans-serif"; c.textAlign = "left"; c.fillText(`Replay ${replay.idx}/${history.length} · ${replay.speed}× · Space play/pause · ←/→ step`, px, OY + SQ * 8 + 14, PANEL_W); }
+    if (replay) { c.fillStyle = T.cyan; c.font = "11px system-ui,sans-serif"; c.textAlign = "left"; c.fillText(`Replay ${replay.idx}/${history.length} · ${replay.speed === "real" ? "real time" : replay.speed + "×"} · Space, ←/→, ↑/↓`, px, OY + SQ * 8 + 14, PANEL_W); }
     for (const p of popups) { const k = 1 - p.ttl / 70; c.globalAlpha = Math.min(1, p.ttl / 15); c.fillStyle = p.color || "#fff"; c.font = "800 14px system-ui,sans-serif"; c.textAlign = "center"; c.shadowColor = "#000"; c.shadowBlur = 6; c.fillText(p.text, p.x, p.y - k * 22); c.shadowBlur = 0; } c.globalAlpha = 1;
     if (!replay && thinking > 0 && S.turn === "b") { c.fillStyle = T.cyan; c.globalAlpha = 0.6 + 0.4 * Math.sin(tick / 5); c.font = "11px system-ui,sans-serif"; c.textAlign = "left"; c.fillText("thinking…", px, OY + SQ * 8 + 14); c.globalAlpha = 1; }
     if (msgTtl > 0 && msg && !replay) { c.font = `800 ${over ? 20 : 16}px 'Chakra Petch',system-ui,sans-serif`; c.textAlign = "center"; c.textBaseline = "middle"; const tw = c.measureText(msg).width + 28; c.fillStyle = T.bg; c.globalAlpha = 0.85; rr(c, OX + SQ * 4 - tw / 2, OY + SQ * 4 - 16, tw, 32, 16); c.fill(); c.globalAlpha = 1; c.fillStyle = T.marquee; c.fillText(msg, OX + SQ * 4, OY + SQ * 4); }
