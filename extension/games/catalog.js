@@ -100,6 +100,14 @@ export const CATALOG = [
     load: () => import("./chopper/game.js"), status: "ready",
   },
   {
+    id: "chess", title: "Chess", genre: "Board",
+    tagline: "You're White. Full rules, an alpha-beta engine, three strengths, and a hint when you're stuck.",
+    controls: "Click a piece then a highlighted square, or drag it. Pawns promote to queens. H asks the engine for a move.",
+    ai: "Alpha-beta minimax with piece-square tables; depth 1–3 by difficulty, with deliberate inaccuracy on Beginner.",
+    shortcuts: [["Click, click", "Select, then move"], ["Drag", "Move a piece"], ["H", "Engine suggestion (−50)"]],
+    load: () => import("./chess/game.js"), status: "ready",
+  },
+  {
     id: "rails", title: "Rail Switch", genre: "Puzzle",
     tagline: "Four lines, trains from both ends, coal cars of every length. Open the right crossover before they meet.",
     controls: "Click a diamond to open or close that crossover. \\ sends eastbound trains down and westbound up; / does the reverse. H shows the fix for the next collision.",

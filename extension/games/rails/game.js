@@ -3,13 +3,14 @@
 // lines) to open it: an open "\" crossover sends an eastbound train from the upper line down to the
 // lower one, and a westbound train from the lower line up; "/" crossovers do the opposite. Every car
 // that reaches the far end pays. H highlights the switch that prevents the next collision.
-const W = 640, H = 420, TRACKS = 4, TY = [84, 164, 244, 324], COLS = 6, CX = Array.from({ length: COLS }, (_, i) => 70 + i * 86), SPAN = 56, ENG = 34, CAR = 26;
+const W = 640, H = 420, TRACKS = 4, TY = [84, 164, 244, 324], COLS = 6, CX = Array.from({ length: COLS }, (_, i) => 56 + i * 90), SPAN = 76, ENG = 34, CAR = 26;
 const DIFFICULTY = {
   beginner:     { name: "Beginner",     every: 300, speed: [0.7, 1.4], cars: [2, 5], lives: 4 },
   intermediate: { name: "Intermediate", every: 220, speed: [0.8, 1.9], cars: [2, 7], lives: 3 },
   advanced:     { name: "Advanced",     every: 160, speed: [0.9, 2.4], cars: [3, 9], lives: 2 },
 };
 
+const ease = (k) => k * k * (3 - 2 * k); // smoothstep: horizontal tangents at both ends
 export default function createRails({ autopilot = false, difficulty = "intermediate" } = {}) {
   const diff = DIFFICULTY[difficulty] || DIFFICULTY.intermediate;
   let T = null, tick = 0;
@@ -59,9 +60,9 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
           if (from === src) { tr.cross = { from: src, to: target, x0: ex, x1: tr.dir > 0 ? s.x + SPAN : s.x }; tr.passed.add(s); sh.audio.tone({ freq: 200, type: "sawtooth", dur: 0.1, vol: 0.05 }); }
         }
       }
-      if (tr.cross) { const k = Math.min(1, Math.abs(tr.x - tr.cross.x0) / SPAN); tr.y = tr.cross.from + (tr.cross.to - tr.cross.from) * k; if (k >= 1) { tr.y = tr.cross.to; tr.cross = null; } }
-      tr.trail.unshift([tr.x, tr.y]); if (tr.trail.length > 600) tr.trail.pop();
-      if (tick % 4 === 0) smoke.push({ x: tr.x + tr.dir * 10, y: TY[0] + (tr.y) * 80 - 18, vx: -tr.dir * 0.3 + (sh.rng.next() - 0.5) * 0.3, r: 2, ttl: 40 });
+      if (tr.cross) { const k = Math.min(1, Math.abs(tr.x - tr.cross.x0) / SPAN); tr.y = tr.cross.from + (tr.cross.to - tr.cross.from) * ease(k); if (k >= 1) { tr.y = tr.cross.to; tr.cross = null; } }
+      tr.trail.unshift([tr.x, tr.y]); if (tr.trail.length > 900) tr.trail.pop();
+      if (tick % 4 === 0) smoke.push({ x: tr.x + tr.dir * 8, y: TY[0] + (tr.y) * 80 - 20, vx: -tr.dir * 0.3 + (sh.rng.next() - 0.5) * 0.3, r: 2, ttl: 40 });
       const tail = tr.x - tr.dir * (ENG + tr.cars * CAR);
       if ((tr.dir > 0 && tail > W + 10) || (tr.dir < 0 && tail < -10)) { tr.done = true; delivered += tr.cars; combo++; const pts = tr.cars * 10 * Math.min(5, combo); g.score += pts; sh.wallet?.earn(tr.cars); pop(tr.dir > 0 ? W - 60 : 60, TY[Math.round(tr.y)] - 24, `+${pts} · ${tr.cars} cr`, T?.marquee); sh.audio.eat(); if (delivered >= g.level * 40) { g.level++; say(`Level ${g.level} · faster`, 90); sh.audio.levelUp(); } }
     }
@@ -92,7 +93,7 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
       for (const tr of st) {
         tr.x += tr.dir * tr.speed * 3;
         for (const s of switches) { if (!s.on || tr.passed.has(s) || tr.cross) continue; const ex = tr.dir > 0 ? s.x : s.x + SPAN; if ((tr.dir > 0 && tr.x >= ex && tr.x - tr.dir * tr.speed * 3 < ex) || (tr.dir < 0 && tr.x <= ex && tr.x - tr.dir * tr.speed * 3 > ex)) { const goesDown = (s.shape === "\\") === (tr.dir > 0); const target = goesDown ? s.t + 1 : s.t, src = goesDown ? s.t : s.t + 1; if (Math.round(tr.y) === src) { tr.cross = { from: src, to: target, x0: ex }; tr.passed.add(s); } } }
-        if (tr.cross) { const k = Math.min(1, Math.abs(tr.x - tr.cross.x0) / SPAN); tr.y = tr.cross.from + (tr.cross.to - tr.cross.from) * k; if (k >= 1) { tr.y = tr.cross.to; tr.cross = null; } }
+        if (tr.cross) { const k = Math.min(1, Math.abs(tr.x - tr.cross.x0) / SPAN); tr.y = tr.cross.from + (tr.cross.to - tr.cross.from) * ease(k); if (k >= 1) { tr.y = tr.cross.to; tr.cross = null; } }
       }
       for (let i = 0; i < st.length; i++) for (let j = i + 1; j < st.length; j++) { const a = st[i], b = st[j]; if (Math.abs(a.y - b.y) > 0.45) continue; const [a0, a1] = span(a), [b0, b1] = span(b); if (a0 < b1 && b0 < a1) return { a: a.ref, b: b.ref, t, x: (a.x + b.x) / 2, y: a.y }; }
     }
@@ -130,7 +131,9 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
       const x0 = down ? xa : xb, x1 = down ? xb : xa; // diagonal from (x0,y0) to (x1,y1)
       c.globalAlpha = s.on ? 1 : 0.22; c.strokeStyle = s.on ? T.cyan : T.textDim; c.lineWidth = 2;
       if (s.on) { c.shadowColor = T.cyan; c.shadowBlur = 10; }
-      c.beginPath(); c.moveTo(x0, y0 - 5); c.lineTo(x1, y1 - 5); c.moveTo(x0, y0 + 5); c.lineTo(x1, y1 + 5); c.stroke(); c.shadowBlur = 0; c.globalAlpha = 1;
+      c.beginPath(); curve(c, x0, y0 - 5, x1, y1 - 5); curve(c, x0, y0 + 5, x1, y1 + 5); c.stroke(); c.shadowBlur = 0;
+      if (s.on) { c.fillStyle = shade(T.surface2, -0.2); for (let k = 0.08; k < 1; k += 0.1) { const px = x0 + (x1 - x0) * k, py = y0 + (y1 - y0) * ease(k); const ang = Math.atan2((y1 - y0) * 6 * k * (1 - k), (x1 - x0)); c.save(); c.translate(px, py); c.rotate(ang); c.fillRect(-3, -9, 6, 18); c.restore(); } }
+      c.globalAlpha = 1;
       // lever diamond
       const mx = s.x + SPAN / 2, my = (y0 + y1) / 2, isHint = hint === s && hintTtl > 0, isHover = hover === s;
       c.save(); c.translate(mx, my); c.rotate(Math.PI / 4);
@@ -152,22 +155,26 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
     if (msgTtl > 0 && msg) { c.font = "800 22px 'Chakra Petch',system-ui,sans-serif"; c.textAlign = "center"; c.fillStyle = T.marquee; c.shadowColor = "#000"; c.shadowBlur = 10; c.globalAlpha = Math.min(1, msgTtl / 20); c.fillText(msg, W / 2, H - 30); c.shadowBlur = 0; c.globalAlpha = 1; }
     c.restore();
   }
+  function curve(c, x0, y0, x1, y1) { c.moveTo(x0, y0); c.bezierCurveTo(x0 + (x1 - x0) * 0.5, y0, x0 + (x1 - x0) * 0.5, y1, x1, y1); }
   function posAt(tr, back) { // position `back` px behind the engine along its trail
     const idx = Math.min(tr.trail.length - 1, Math.round(back / tr.speed));
     if (idx < 0 || !tr.trail.length) return [tr.x - tr.dir * back, tr.y];
     const p = tr.trail[idx]; return idx === tr.trail.length - 1 ? [tr.x - tr.dir * back, p[1]] : p;
   }
+  function headingAt(tr, back) { const [xa, ya] = posAt(tr, Math.max(0, back - 8)), [xb, yb] = posAt(tr, back + 8); return Math.atan2((ya - yb) * 80 * tr.dir, Math.max(1, Math.abs(xa - xb))); }
   function drawTrain(c, tr) {
     for (let k = tr.cars - 1; k >= 0; k--) {
-      const [x, ty] = posAt(tr, ENG / 2 + CAR / 2 + k * CAR); const y = TY[0] + ty * 80;
+      const back = ENG / 2 + CAR / 2 + k * CAR; const [cx, ty] = posAt(tr, back); const cy = TY[0] + ty * 80;
+      c.save(); c.translate(cx, cy); c.rotate(headingAt(tr, back)); const x = 0, y = 0;
       c.fillStyle = "#00000055"; c.fillRect(x - CAR / 2 + 2, y - 4, CAR - 3, 10);
       const grd = c.createLinearGradient(0, y - 10, 0, y + 4); grd.addColorStop(0, shade("#6B7280", 0.2)); grd.addColorStop(1, shade("#6B7280", -0.4));
       c.fillStyle = grd; rr(c, x - CAR / 2 + 1, y - 9, CAR - 2, 12, 2); c.fill();
       c.fillStyle = "#1a1a1a"; c.beginPath(); c.arc(x - 7, y + 4, 2.5, 0, 7); c.arc(x + 7, y + 4, 2.5, 0, 7); c.fill();
       c.fillStyle = "#2b2b2b"; c.beginPath(); c.moveTo(x - CAR / 2 + 3, y - 9); c.quadraticCurveTo(x, y - 17, x + CAR / 2 - 3, y - 9); c.closePath(); c.fill();
       c.fillStyle = "#555"; for (let i = 0; i < 4; i++) c.fillRect(x - 8 + i * 5, y - 13 + (i % 2) * 2, 2, 2);
+      c.restore();
     }
-    const y = TY[0] + tr.y * 80, x = tr.x, d = tr.dir;
+    c.save(); c.translate(tr.x, TY[0] + tr.y * 80); c.rotate(headingAt(tr, 0)); const y = 0, x = 0, d = tr.dir;
     c.fillStyle = "#00000066"; c.fillRect(x - ENG / 2 + 2, y - 4, ENG - 3, 10);
     const eg = c.createLinearGradient(0, y - 14, 0, y + 4); eg.addColorStop(0, shade(tr.color, 0.4)); eg.addColorStop(1, shade(tr.color, -0.45));
     c.fillStyle = eg; c.shadowColor = tr.color; c.shadowBlur = 10; rr(c, x - ENG / 2, y - 10, ENG, 14, 3); c.fill(); c.shadowBlur = 0;
@@ -176,6 +183,7 @@ export default function createRails({ autopilot = false, difficulty = "intermedi
     c.fillStyle = "#1a1a1a"; c.beginPath(); c.arc(x - 9, y + 4, 3, 0, 7); c.arc(x, y + 4, 3, 0, 7); c.arc(x + 9, y + 4, 3, 0, 7); c.fill();
     c.fillStyle = "#FFF4CC"; c.shadowColor = "#FFF4CC"; c.shadowBlur = 12; c.beginPath(); c.arc(x + d * (ENG / 2 - 2), y - 4, 2.5, 0, 7); c.fill(); c.shadowBlur = 0;
     c.globalAlpha = 0.12; c.fillStyle = "#FFF4CC"; c.beginPath(); c.moveTo(x + d * ENG / 2, y - 6); c.lineTo(x + d * (ENG / 2 + 70), y - 16); c.lineTo(x + d * (ENG / 2 + 70), y + 6); c.closePath(); c.fill(); c.globalAlpha = 1;
+    c.restore();
   }
   function rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
   function shade(hex, amt) { if (!hex || hex[0] !== "#" || hex.length < 7) return hex; const ch = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)); return "#" + ch.map(v => Math.max(0, Math.min(255, Math.round(amt > 0 ? v + (255 - v) * amt : v * (1 + amt)))).toString(16).padStart(2, "0")).join(""); }
