@@ -87,7 +87,7 @@ Names are 2–12 chars, filtered for profanity. Score posts are rate limited per
 - [x] Chopper Command — convoy defence over a scrolling desert with radar, jets, gunships and bombs
 - [x] Lunar Lander — pads with multipliers, fuel that carries over, flight instruments, autopilot
 - [x] Chess — full rules, alpha-beta engine with piece-square tables, drag or click, hints, move list
-- [x] Rail Switch — four lines, trains from both ends with variable coal cars, clickable crossovers, look-ahead collision warning and hint
+- [x] Rail Switch — four lines, trains from both ends with variable coal cars, drag-drawn S-curve crossovers, look-ahead collision warning and hint
 - [x] Invaders — 55-alien formation, pixel-destructible bunkers, saucer, nebula/planet/warp backdrop, CRT finish
 - [ ] Global leaderboard on eatsleepai.us (server already written; needs PipeDream replay port)
 - [ ] Ghost replay of the #1 run

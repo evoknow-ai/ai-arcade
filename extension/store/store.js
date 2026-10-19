@@ -121,6 +121,7 @@ async function gameOver(result) {
 }
 
 function backToStore() {
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); // leaving the stage fullscreen would otherwise hide the store
   shell?.destroy(); shell = null;
   $("playView").hidden = true; $("storeView").hidden = false;
   renderStore();
