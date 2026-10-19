@@ -73,21 +73,41 @@ main { padding: 36px 32px 60px; max-width: 1180px; margin: 0 auto; }
 .shelf h2 { font-family: var(--display); font-weight: 700; font-size: 28px; margin: 0; letter-spacing: .02em; }
 .filters button { background: none; border: 0; color: var(--paper-dim); padding: 4px 12px; border-radius: 999px; transition: background .2s, color .2s; }
 .filters button.on { color: var(--ink); background: var(--marquee); }
-.games { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; perspective: 1000px; }
-.game { position: relative; display: grid; grid-template-columns: 64px 1fr; gap: 14px; padding: 16px; border-radius: 16px; background: var(--glass); backdrop-filter: blur(14px); border: 1px solid var(--glass-border); transform-style: preserve-3d; transform: rotateY(var(--ry, 0)) rotateX(var(--rx, 0)) translateY(var(--ty, 0)); transition: transform .3s var(--ease), box-shadow .3s, border-color .3s; --genre: var(--cyan); }
+.games { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; perspective: 1000px; }
+.game { position: relative; display: flex; flex-direction: column; border-radius: 16px; overflow: hidden; background: var(--glass); backdrop-filter: blur(14px); border: 1px solid var(--glass-border); transform-style: preserve-3d; transform: rotateY(var(--ry, 0)) rotateX(var(--rx, 0)) translateY(var(--ty, 0)); transition: transform .3s var(--ease), box-shadow .3s, border-color .3s; --genre: var(--cyan); }
 .game[data-genre="Puzzle"] { --genre: var(--marquee); }
 .game[data-genre="Shooter"] { --genre: var(--accent); }
-.game:hover { --ty: -4px; box-shadow: 0 24px 50px -24px #000, 0 0 40px -16px var(--genre); border-color: color-mix(in srgb, var(--genre) 55%, transparent); }
-.game .icon { width: 64px; height: 64px; border-radius: 14px; display: grid; place-items: center; background: linear-gradient(160deg, color-mix(in srgb, var(--genre) 35%, var(--surface)), var(--surface)); box-shadow: 0 10px 20px -10px var(--genre), 0 1px 0 #fff2 inset; transform: translateZ(24px); }
-.game .icon svg { width: 40px; height: 40px; }
+.game[data-genre="Cards"], .game[data-genre="Board"] { --genre: #B57BFF; }
+.game:hover { --ty: -5px; box-shadow: 0 28px 56px -24px #000, 0 0 46px -16px var(--genre); border-color: color-mix(in srgb, var(--genre) 55%, transparent); }
+.game .cover { position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: var(--surface); }
+.game .cover img { width: 100%; height: 100%; object-fit: cover; display: block; transform: scale(1.02); transition: transform .6s var(--ease), filter .4s; filter: saturate(1.05); }
+.game:hover .cover img { transform: scale(1.09); }
+.game .cover:after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, color-mix(in srgb, var(--surface) 85%, transparent) 100%); pointer-events: none; }
+.game .icon { position: absolute; left: 12px; bottom: 10px; z-index: 1; width: 44px; height: 44px; border-radius: 11px; display: grid; place-items: center; background: linear-gradient(160deg, color-mix(in srgb, var(--genre) 40%, var(--surface)), var(--surface)); box-shadow: 0 10px 20px -8px #000, 0 1px 0 #fff2 inset; }
+.game .icon svg { width: 28px; height: 28px; }
+.game .genre { position: absolute; right: 12px; top: 10px; z-index: 1; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); background: var(--genre); padding: 3px 8px; border-radius: 999px; font-weight: 700; }
+.game .fav { position: absolute; left: 12px; top: 10px; z-index: 2; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--glass-border); background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(6px); display: grid; place-items: center; color: var(--paper-dim); transition: transform .2s var(--ease), color .2s, background .2s; }
+.game .fav svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; }
+.game .fav:hover { transform: scale(1.12); color: var(--accent); }
+.game .fav.on { color: #fff; background: var(--accent); border-color: var(--accent); }
+.game .fav.on svg { fill: #fff; stroke: #fff; animation: beat .35s var(--ease); }
+@keyframes beat { 0% { transform: scale(.6); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
+.game .inner { padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .game h3 { font-family: var(--display); font-size: 22px; margin: 0; font-weight: 700; letter-spacing: .02em; }
-.game p { margin: 2px 0 10px; color: var(--paper-dim); font-size: 14px; }
-.game .row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--paper-dim); }
+.game p { margin: 0; color: var(--paper-dim); font-size: 13.5px; line-height: 1.45; flex: 1; }
+.game .stats { display: flex; gap: 14px; font-size: 12px; color: var(--paper-dim); margin-top: 4px; }
+.game .stats span { display: inline-flex; align-items: center; gap: 5px; }
+.game .stats svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; }
+.game .stats b { color: var(--paper); font-weight: 600; }
+.game .row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--paper-dim); margin-top: 6px; }
 .game .row b { color: var(--paper); }
-.game button { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 8px; padding: 5px 12px; transition: all .2s; }
-.game button:hover { border-color: var(--genre); color: var(--genre); }
+.game .row button { background: linear-gradient(180deg, #ffffff22, transparent 55%), var(--genre); color: var(--ink); border: 0; border-radius: 9px; padding: 7px 16px; font-family: var(--display); font-weight: 700; letter-spacing: .04em; transition: transform .15s var(--ease), filter .2s; box-shadow: 0 8px 18px -8px var(--genre); }
+.game .row button:hover { transform: translateY(-1px); filter: brightness(1.1); }
 .game.soon { opacity: .6; }
 .game.soon button { border-style: dashed; cursor: default; }
+.filters button.fav-filter { color: var(--accent); }
+.filters button.fav-filter.on { color: #fff; background: var(--accent); }
+.empty { color: var(--paper-dim); padding: 30px 0; text-align: center; grid-column: 1 / -1; }
 
 /* ---- entrance: one orchestrated reveal ---- */
 .reveal { opacity: 0; transform: translateY(18px); animation: rise .7s var(--ease) forwards; animation-delay: var(--d, 0s); }

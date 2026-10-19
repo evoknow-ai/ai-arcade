@@ -70,3 +70,11 @@ export async function localScores(gameId, period = "all") {
 // Credits: a wallet that persists across games and sessions.
 export async function getCredits() { return (await get("credits")).credits || 0; }
 export async function setCredits(n) { await set({ credits: Math.max(0, Math.round(n)) }); }
+
+// Play stats per game: how many runs, total time, last played.
+export async function getStats() { return (await get("stats")).stats || {}; }
+export async function bumpPlays(gameId) { const stats = await getStats(); const st = stats[gameId] || { plays: 0, timeMs: 0 }; st.plays++; st.lastPlayed = Date.now(); stats[gameId] = st; await set({ stats }); return stats; }
+export async function addPlayTime(gameId, ms) { const stats = await getStats(); const st = stats[gameId] || { plays: 0, timeMs: 0 }; st.timeMs += Math.max(0, Math.round(ms)); stats[gameId] = st; await set({ stats }); return stats; }
+// Favorites (synced across the user's Chrome profiles)
+export async function getFavorites() { return (await getSync("favorites")).favorites || []; }
+export async function setFavorites(list) { await setSync({ favorites: list }); }

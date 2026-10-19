@@ -9,6 +9,16 @@ const $ = (id) => document.getElementById(id);
 let remote = { games: {} };           // server metadata keyed by game id
 let shell = null, attractShell = null, current = null, period = "all";
 let identity = await store.getIdentity();
+let favorites = await store.getFavorites();
+let activeFilter = "All";
+let playStart = null; // when the current run started, for time-played stats
+const HEART = `<svg viewBox="0 0 24 24"><path d="M12 21s-7-4.6-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.4-9.5 9-9.5 9z"/></svg>`;
+const PLAY_ICON = `<svg viewBox="0 0 24 24"><path d="M7 4l12 8-12 8z"/></svg>`;
+const CLOCK_ICON = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`;
+async function toggleFavorite(id) { favorites = favorites.includes(id) ? favorites.filter(x => x !== id) : [...favorites, id]; await store.setFavorites(favorites); }
+function fmtDuration(ms) { const s = Math.round(ms / 1000); if (s < 60) return `${s}s`; const m = Math.floor(s / 60); if (m < 60) return `${m}m`; const h = Math.floor(m / 60); return `${h}h ${m % 60}m`; }
+function fmtAgo(ts) { const d = Date.now() - ts; const m = Math.floor(d / 60000); if (m < 1) return "just now"; if (m < 60) return `${m}m ago`; const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`; const days = Math.floor(h / 24); return days === 1 ? "yesterday" : `${days}d ago`; }
+function flushPlayTime() { if (playStart && current) { store.addPlayTime(current.id, Date.now() - playStart); playStart = null; } }
 await loadTheme();
 let difficulty = (await store.getSync("difficulty")).difficulty || "intermediate";
 // shared credits wallet: games earn with good play and spend in their shops
@@ -36,31 +46,38 @@ async function renderStore() {
   $("heroPlay").onclick = () => play(featured);
   startAttract(featured);
 
-  const genres = ["All", ...new Set(CATALOG.map(g => g.genre))];
+  const genres = ["All", "♥ Favorites", ...new Set(CATALOG.map(g => g.genre))];
   const filters = $("filters"); filters.innerHTML = "";
-  let active = "All";
   for (const genre of genres) {
-    const b = document.createElement("button"); b.textContent = genre; if (genre === active) b.classList.add("on");
-    b.onclick = () => { active = genre; [...filters.children].forEach(x => x.classList.toggle("on", x === b)); list(active); };
+    const b = document.createElement("button"); b.textContent = genre; if (genre === activeFilter) b.classList.add("on"); if (genre.startsWith("♥")) b.classList.add("fav-filter");
+    b.onclick = () => { activeFilter = genre; [...filters.children].forEach(x => x.classList.toggle("on", x === b)); list(activeFilter); };
     filters.appendChild(b);
   }
-  list(active);
+  list(activeFilter);
 
   async function list(genre) {
     const ul = $("games"); ul.innerHTML = "";
     const { bests = {} } = await store.get("bests");
+    const stats = await store.getStats();
     let i = 0;
-    for (const g of CATALOG.filter(g => genre === "All" || g.genre === genre)) {
+    const games = CATALOG.filter(g => genre === "All" || (genre.startsWith("♥") ? favorites.includes(g.id) : g.genre === genre));
+    if (!games.length) { ul.innerHTML = `<li class="empty">No favorites yet — tap the heart on any game.</li>`; return; }
+    for (const g of games) {
       const li = document.createElement("li");
       li.className = "game" + (g.status === "soon" ? " soon" : ""); li.dataset.genre = g.genre;
-      const world = remote.games[g.id]?.top;
-      li.style.setProperty("--d", `${0.3 + i * 0.06}s`); li.classList.add("reveal"); i++;
-      li.innerHTML = `<div class="icon">${ICONS[g.id] || ICONS.default}</div><div class="inner">
+      const world = remote.games[g.id]?.top, st = stats[g.id] || { plays: 0, timeMs: 0 }, fav = favorites.includes(g.id);
+      li.style.setProperty("--d", `${0.3 + i * 0.05}s`); li.classList.add("reveal"); i++;
+      li.innerHTML = `<div class="cover"><img src="../covers/${g.id}.jpg" alt="" loading="lazy" onerror="this.remove()"><span class="genre">${g.genre}</span>
+          <button class="fav${fav ? " on" : ""}" title="${fav ? "Remove from favorites" : "Add to favorites"}" aria-pressed="${fav}">${HEART}</button>
+          <div class="icon">${ICONS[g.id] || ICONS.default}</div></div>
+        <div class="inner">
         <h3>${g.title}</h3><p>${g.tagline}</p>
+        <div class="stats"><span>${PLAY_ICON}<b>${st.plays}</b> ${st.plays === 1 ? "play" : "plays"}</span><span>${CLOCK_ICON}<b>${fmtDuration(st.timeMs)}</b> played</span>${st.lastPlayed ? `<span>last ${fmtAgo(st.lastPlayed)}</span>` : ""}</div>
         <div class="row"><span>Your best <b>${bests[g.id]?.score?.toLocaleString() ?? "–"}</b>${API_BASE ? ` · World <b>${world ? world.score.toLocaleString() + " " + esc(world.name) : "–"}</b>` : ""}</span>
-        <button>${g.status === "soon" ? "Coming soon" : "Play"}</button></div></div>`;
-      if (g.status === "ready") li.querySelector("button").onclick = () => play(g);
-      tilt(li, 6);
+        <button class="playbtn">${g.status === "soon" ? "Coming soon" : "Play"}</button></div></div>`;
+      if (g.status === "ready") li.querySelector(".playbtn").onclick = () => play(g);
+      li.querySelector(".fav").onclick = async (e) => { e.stopPropagation(); await toggleFavorite(g.id); const on = favorites.includes(g.id); e.currentTarget.classList.toggle("on", on); e.currentTarget.title = on ? "Remove from favorites" : "Add to favorites"; if (genre.startsWith("♥") && !on) list(genre); };
+      tilt(li, 5);
       ul.appendChild(li);
     }
   }
@@ -78,7 +95,8 @@ async function startAttract(game) {
 // ---------- Play view ----------
 async function play(game) {
   attractShell?.destroy(); attractShell = null;
-  current = game;
+  flushPlayTime();
+  current = game; playStart = Date.now(); store.bumpPlays(game.id);
   syncDifficultyUI();
   $("storeView").hidden = true; $("playView").hidden = false;
   $("playTitle").textContent = game.title; renderKeystrip(game);
@@ -98,6 +116,7 @@ async function play(game) {
 }
 
 async function gameOver(result) {
+  flushPlayTime();
   const isBest = await store.recordLocalBest(current.id, { score: result.score, level: result.level, ts: Date.now() });
   $("finalScore").textContent = result.score.toLocaleString(); $("finalLevel").textContent = result.level;
   $("finalNote").textContent = isBest ? "New personal best." : "";
@@ -121,6 +140,7 @@ async function gameOver(result) {
 }
 
 function backToStore() {
+  flushPlayTime();
   if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); // leaving the stage fullscreen would otherwise hide the store
   shell?.destroy(); shell = null;
   $("playView").hidden = true; $("storeView").hidden = false;
@@ -226,6 +246,7 @@ function toggleFullscreen() {
 }
 $("keysBtn").onclick = showKeys;
 $("fullscreenBtn").onclick = toggleFullscreen;
+window.addEventListener("beforeunload", flushPlayTime);
 window.addEventListener("keydown", (e) => {
   const tag = e.target?.tagName; if (tag === "INPUT" || tag === "TEXTAREA" || e.target?.isContentEditable || document.querySelector("dialog[open]")) return;
   if (!shell) return;
@@ -254,6 +275,16 @@ const ICONS = {
   stacker: `<svg viewBox="0 0 40 40" fill="var(--genre)"><rect x="6" y="26" width="8" height="8" rx="1"/><rect x="16" y="26" width="8" height="8" rx="1"/><rect x="26" y="26" width="8" height="8" rx="1"/><rect x="16" y="16" width="8" height="8" rx="1"/><rect x="26" y="16" width="8" height="8" rx="1"/><rect x="26" y="6" width="8" height="8" rx="1" opacity=".5"/></svg>`,
   rocks: `<svg viewBox="0 0 40 40" fill="none" stroke="var(--genre)" stroke-width="3" stroke-linejoin="round"><path d="M20 6l8 16H12z" fill="var(--genre)"/><path d="M28 28l5-3 3 5-4 4-5-2z"/><path d="M6 28l4-4 4 3-2 5-5 0z"/></svg>`,
   maze: `<svg viewBox="0 0 40 40" fill="none" stroke="var(--genre)" stroke-width="3"><path d="M6 6h28v28H6zM6 14h12M22 14h12M14 14v12M26 22h8M14 26h12"/><circle cx="10" cy="30" r="2.5" fill="var(--genre)" stroke="none"/></svg>`,
+  scorched: `<svg viewBox="0 0 40 40" fill="none" stroke="var(--genre)" stroke-width="3" stroke-linecap="round"><path d="M4 30q8-10 14-4t8-8 10-2"/><path d="M8 30h8"/><path d="M12 30v-4l5-5"/><circle cx="29" cy="12" r="2.5" fill="var(--genre)" stroke="none"/></svg>`,
+  minefield: `<svg viewBox="0 0 40 40" fill="var(--genre)"><circle cx="20" cy="22" r="8"/><path d="M20 8v6M20 30v6M6 22h6M28 22h6M10 12l4 4M26 16l4-4M10 32l4-4M26 28l4 4" stroke="var(--genre)" stroke-width="2.5"/><path d="M22 10l4-5" stroke="var(--genre)" stroke-width="2.5"/></svg>`,
+  missile: `<svg viewBox="0 0 40 40" fill="none" stroke="var(--genre)" stroke-width="3" stroke-linecap="round"><path d="M6 34h28"/><path d="M12 34v-6M20 34v-9M28 34v-6"/><path d="M30 6l-7 12M10 6l5 10"/><circle cx="21" cy="21" r="4" fill="var(--genre)" stroke="none"/></svg>`,
+  solitaire: `<svg viewBox="0 0 40 40" fill="none" stroke="var(--genre)" stroke-width="2.5"><rect x="6" y="9" width="16" height="22" rx="2" transform="rotate(-8 14 20)"/><rect x="17" y="8" width="16" height="22" rx="2" fill="var(--genre)" fill-opacity=".2" transform="rotate(8 25 19)"/><path d="M25 15l3 3-3 3-3-3z" fill="var(--genre)" stroke="none"/></svg>`,
+  belt: `<svg viewBox="0 0 40 40" fill="none" stroke="var(--genre)" stroke-width="2.5" stroke-linejoin="round"><path d="M20 30l-6 6 3-8-3-4 4-3 2-5 2 5 4 3-3 4 3 8z" fill="var(--genre)"/><path d="M8 8l4 2-2 4-4-2z"/><path d="M30 6l3 3-2 3-3-2z"/></svg>`,
+  chopper: `<svg viewBox="0 0 40 40" fill="none" stroke="var(--genre)" stroke-width="3" stroke-linecap="round"><path d="M8 12h24"/><path d="M20 12v4"/><ellipse cx="22" cy="21" rx="9" ry="5" fill="var(--genre)"/><path d="M13 21H5l-1-4"/><path d="M16 29h12"/></svg>`,
+  lander: `<svg viewBox="0 0 40 40" fill="none" stroke="var(--genre)" stroke-width="2.5" stroke-linecap="round"><path d="M14 20h12l-2-8h-8z" fill="var(--genre)"/><path d="M14 20l-4 8M26 20l4 8M8 28h5M27 28h5"/><path d="M18 24l2 6 2-6" stroke="var(--marquee)"/><path d="M4 34h32"/></svg>`,
+  invaders: `<svg viewBox="0 0 40 40" fill="var(--genre)"><rect x="12" y="8" width="4" height="4"/><rect x="24" y="8" width="4" height="4"/><rect x="8" y="12" width="24" height="4"/><rect x="4" y="16" width="32" height="8"/><rect x="8" y="24" width="4" height="4"/><rect x="28" y="24" width="4" height="4"/><rect x="12" y="28" width="4" height="4"/><rect x="24" y="28" width="4" height="4"/></svg>`,
+  rails: `<svg viewBox="0 0 40 40" fill="none" stroke="var(--genre)" stroke-width="2.5" stroke-linecap="round"><path d="M4 12h32M4 28h32"/><path d="M12 12c8 0 8 16 16 16"/><path d="M8 8v8M32 24v8"/></svg>`,
+  chess: `<svg viewBox="0 0 40 40" fill="var(--genre)"><path d="M14 34h12v-3H14zM15 29h10l-2-9h-6z"/><path d="M16 18h8l2-6-3 2-3-6-3 6-3-2z"/></svg>`,
   default: `<svg viewBox="0 0 40 40" fill="var(--genre)"><circle cx="20" cy="20" r="8"/></svg>`,
 };
 
