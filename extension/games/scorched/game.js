@@ -293,6 +293,7 @@ export default function createScorched({ autopilot = false, difficulty = "interm
     }
     for (const f of flags) f.t++;
   }
+  function burst(x, y, n, color, sh) { for (let i = 0; i < n; i++) { const a = sh.rng.next() * 6.28, sp = 0.5 + sh.rng.next() * 3; particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1, ttl: 20 + sh.rng.int(30), color }); } }
   function damage(t, dmg, sh, why) {
     let real = dmg;
     if (t.shield > 0) { const absorbed = Math.min(t.shield, dmg); t.shield -= absorbed; real = dmg - absorbed; pop(t.x, t.y - 30, `shield -${absorbed}`, T?.cyan); if (t.shield === 0) say(`${t.name}'s shield is down`, 60); }
