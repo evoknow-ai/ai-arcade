@@ -242,7 +242,19 @@ async function finishRecording() {
   bar.style.width = "100%"; if (ext === "mp4") status.textContent = `${Math.round(res.seconds)}s clip ready · ${(blob.size / 1048576).toFixed(1)} MB`;
   const name = `${current?.id || "arcade"}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.${ext}`;
   lastClip = { blob, name }; video.src = URL.createObjectURL(blob); video.hidden = false; save.hidden = false; save.textContent = `Download ${ext.toUpperCase()}`;
-  save.onclick = () => download(blob, name);
+  save.onclick = async () => {
+    save.disabled = true; save.textContent = "Saving…"; bar.style.width = "0%"; status.textContent = `Saving ${name}…`;
+    // stream the blob to a File System handle when available (shows real progress); fall back to a plain download
+    try {
+      if (window.showSaveFilePicker) {
+        const handle = await window.showSaveFilePicker({ suggestedName: name, types: [{ description: ext.toUpperCase() + " video", accept: { [blob.type]: ["." + ext] } }] });
+        const w = await handle.createWritable(); const reader = blob.stream().getReader(); let done = 0;
+        for (;;) { const { value, done: fin } = await reader.read(); if (fin) break; await w.write(value); done += value.length; bar.style.width = `${Math.round(done / blob.size * 100)}%`; status.textContent = `Saving… ${Math.round(done / blob.size * 100)}%`; }
+        await w.close(); status.textContent = `Saved ${name}`; bar.style.width = "100%";
+      } else { download(blob, name); bar.style.width = "100%"; status.textContent = `Download started: ${name}`; }
+    } catch (e) { if (e?.name !== "AbortError") { download(blob, name); status.textContent = `Download started: ${name}`; } else status.textContent = "Save cancelled."; bar.style.width = "100%"; }
+    save.disabled = false; save.textContent = `Download ${ext.toUpperCase()}`;
+  };
 }
 $("recBtn").onclick = toggleRecording;
 
