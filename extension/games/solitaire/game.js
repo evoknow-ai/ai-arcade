@@ -3,6 +3,7 @@
 // card with unlimited passes; Intermediate draws three; Advanced draws three with only three passes.
 // Scoring: +10 per card to a foundation, +5 waste→tableau, +5 for turning a card over, −15 for taking
 // a card back off a foundation; a time bonus and +1000 on completion. H highlights a legal move.
+import { loadPack, draw as spr } from "../../shell/sprites.js";
 const W = 640, H = 460, CW = 70, CH = 96, TOP = 46, GAP = 12, COLS = 7;
 const SUITS = ["♠", "♥", "♦", "♣"], RED = { "♥": true, "♦": true };
 const DIFFICULTY = {
@@ -13,7 +14,7 @@ const DIFFICULTY = {
 
 export default function createSolitaire({ autopilot = false, difficulty = "intermediate" } = {}) {
   const diff = DIFFICULTY[difficulty] || DIFFICULTY.intermediate;
-  let T = null, tick = 0;
+  let T = null, tick = 0, pack = null; loadPack("cards").then(p => { pack = p; });
   const g = { id: "solitaire", tps: 60, score: 0, level: 1, size: { width: W, height: H }, autopilot, init, update, render, onInput, onPointer, onPointerDown, onPointerUp, onHover, hud };
   let stock, waste, found, tab, drag, sel, hover, passes, startTick, elapsed, hint, hintTtl, msg, msgTtl, won, wonT, confetti, moves, flips;
   const colX = (i) => GAP + i * (CW + GAP) + 10, tabY = TOP + CH + 24;
@@ -200,6 +201,7 @@ export default function createSolitaire({ autopilot = false, difficulty = "inter
   function isSel(card) { return sel && sel.cards.includes(card); }
   function slot(c, x, y, glyph) { c.strokeStyle = "#ffffff22"; c.lineWidth = 1.5; rr(c, x, y, CW, CH, 8); c.stroke(); if (glyph) { c.fillStyle = "#ffffff22"; c.font = "700 28px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(glyph, x + CW / 2, y + CH / 2); } }
   function back(c, x, y) {
+    if (pack?.sprites?.card_back) { const s = pack.sprites.card_back; c.save(); c.drawImage(s.img, x, y, CW, CH); c.restore(); return; }
     c.fillStyle = "#00000055"; rr(c, x + 2, y + 3, CW, CH, 8); c.fill();
     const grd = c.createLinearGradient(x, y, x + CW, y + CH); grd.addColorStop(0, shade(T.surface3, 0.1)); grd.addColorStop(1, shade(T.surface2, -0.2));
     c.fillStyle = grd; rr(c, x, y, CW, CH, 8); c.fill();
@@ -209,6 +211,8 @@ export default function createSolitaire({ autopilot = false, difficulty = "inter
   }
   function face(c, card, x, y, selected, k = 1, scale = 1) {
     const red = RED[card.s], col = red ? "#E0244D" : "#1B1F2A";
+    const key = "card_" + ["", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"][card.r] + { "♠": "s", "♥": "h", "♦": "d", "♣": "c" }[card.s];
+    if (pack?.sprites?.[key]) { const s = pack.sprites[key]; c.save(); if (k < 1) { c.translate(x + CW / 2, y + CH / 2); c.scale(Math.abs(Math.cos((1 - k) * Math.PI / 2)), 1); c.translate(-(x + CW / 2), -(y + CH / 2)); } if (scale !== 1) { c.translate(x + CW / 2, y + CH / 2); c.scale(scale, scale); c.translate(-(x + CW / 2), -(y + CH / 2)); } c.drawImage(s.img, x, y, CW, CH); if (selected) { c.strokeStyle = T.cyan; c.lineWidth = 3; rr(c, x + 0.5, y + 0.5, CW - 1, CH - 1, 6); c.stroke(); } c.restore(); return; }
     c.save();
     if (k < 1) { c.translate(x + CW / 2, y + CH / 2); c.scale(Math.abs(Math.cos((1 - k) * Math.PI / 2)), 1); c.translate(-(x + CW / 2), -(y + CH / 2)); }
     if (scale !== 1) { c.translate(x + CW / 2, y + CH / 2); c.scale(scale, scale); c.translate(-(x + CW / 2), -(y + CH / 2)); }

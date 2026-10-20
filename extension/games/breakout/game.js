@@ -3,6 +3,7 @@
 // armoured (crack through 2–3 hits), star bricks that drop power-ups, explosive bricks that take out
 // their neighbours, steel bricks that only fire or explosions remove, and sliders that move. Levels
 // drop in with an animation; the background drifts, shards fly, the ball leaves a comet trail.
+import { loadPack, draw as spr } from "../../shell/sprites.js";
 const W = 560, H = 440, PW0 = 90, PH = 12, BR = 6, COLS = 12, BW = 42, BH = 16, OX = (W - COLS * BW) / 2;
 const DIFFICULTY = {
   beginner:     { name: "Beginner",     speed: 3.6, lives: 5, paddle: 1.3, bad: 0.05 },
@@ -20,7 +21,7 @@ const ROW_HUES = [340, 25, 48, 95, 165, 195, 225, 270, 300];
 
 export default function createBreakout({ autopilot = false, difficulty = "intermediate" } = {}) {
   const diff = DIFFICULTY[difficulty] || DIFFICULTY.intermediate;
-  let T = null, tick = 0;
+  let T = null, tick = 0, pack = null; loadPack("breakout").then(p => { pack = p; });
   const g = { id: "breakout", tps: 60, size: { width: W, height: H }, score: 0, level: 1, autopilot, init, update, render, onInput, onHover, onPointer, hud };
   let paddle, balls, bricks, drops, lasers, lives, particles, shards, rings, popups, msg, msgTtl, shake, wideT, slowT, fastT, sticky, laserT, fireT, x2T, combo, flash, stars, bands, intro;
 
@@ -144,14 +145,18 @@ export default function createBreakout({ autopilot = false, difficulty = "interm
     for (const l of lasers) { c.shadowColor = T.accent; c.shadowBlur = 10; c.fillStyle = T.accent; c.fillRect(l.x - 1.5, l.y - 8, 3, 12); c.shadowBlur = 0; }
     // paddle
     const px = paddle.x - paddle.w / 2, py = H - 30, pc = sticky ? T.marquee : laserT > 0 ? T.accent : T.cyan;
+    if (pack?.sprites?.paddle) { const s = pack.sprites.paddle; c.save(); c.translate(paddle.x, py + PH / 2); c.scale(paddle.w / (s.w * pack.scale), 1); c.drawImage(s.img, -s.w / 2 * pack.scale, -s.h / 2 * pack.scale, s.w * pack.scale, s.h * pack.scale); c.restore(); }
+    else {
     c.fillStyle = "#00000066"; rr(c, px + 2, py + 4, paddle.w, PH, 6); c.fill();
     const pg = c.createLinearGradient(0, py, 0, py + PH); pg.addColorStop(0, shade(pc, 0.45)); pg.addColorStop(1, shade(pc, -0.4));
     c.fillStyle = pg; c.shadowColor = pc; c.shadowBlur = 14 + 4 * Math.sin(tick / 8); rr(c, px, py, paddle.w, PH, 6); c.fill(); c.shadowBlur = 0;
     c.fillStyle = "#ffffff55"; rr(c, px + 6, py + 2, paddle.w - 12, 3, 2); c.fill();
+    }
     if (laserT > 0) { c.fillStyle = T.accent; c.fillRect(px + 5, py - 5, 6, 6); c.fillRect(px + paddle.w - 11, py - 5, 6, 6); }
     for (const b of balls) {
       const col = fireT > 0 ? "#FF7A3D" : T.cyan;
       b.trail.forEach(([x, y], i) => { c.globalAlpha = (i + 1) / b.trail.length * 0.5; c.fillStyle = col; c.beginPath(); c.arc(x, y, BR * (i + 1) / b.trail.length, 0, 7); c.fill(); }); c.globalAlpha = 1;
+      if (spr(c, pack, fireT > 0 ? "ball_fire" : "ball", b.x, b.y)) continue;
       c.shadowColor = col; c.shadowBlur = 16; const bgd = c.createRadialGradient(b.x - 2, b.y - 2, 1, b.x, b.y, BR); bgd.addColorStop(0, "#fff"); bgd.addColorStop(1, col); c.fillStyle = bgd; c.beginPath(); c.arc(b.x, b.y, BR, 0, 7); c.fill(); c.shadowBlur = 0;
     }
     for (const p of particles) { c.globalAlpha = Math.min(1, p.ttl / 15); c.fillStyle = p.color; c.fillRect(p.x, p.y, 3, 3); } c.globalAlpha = 1;
@@ -163,6 +168,7 @@ export default function createBreakout({ autopilot = false, difficulty = "interm
   }
   function drawBrick(c, br) {
     const col = brickColor(br);
+    if (pack?.sprites?.["brick_" + br.kind] || pack?.sprites?.brick_glass) { const dropK = intro > 0 ? Math.max(0, Math.min(1, (70 - intro - br.delay / 2) / 14)) : 1; if (dropK <= 0) return; const ease = 1 - Math.pow(1 - dropK, 3), y = br.y - (1 - ease) * 120; c.globalAlpha = ease; spr(c, pack, pack.sprites["brick_" + br.kind] ? "brick_" + br.kind : "brick_glass", br.x + BW / 2, y + BH / 2, { scale: 1 + br.hit / 10 * 0.12 }); if (br.kind === "armour" && br.hp < br.max) { c.globalAlpha = 0.5; spr(c, pack, "crack", br.x + BW / 2, y + BH / 2); } c.globalAlpha = 1; return; }
     // level intro: bricks drop into place with a stagger
     const dropK = intro > 0 ? Math.max(0, Math.min(1, (70 - intro - br.delay / 2) / 14)) : 1;
     if (dropK <= 0) return;

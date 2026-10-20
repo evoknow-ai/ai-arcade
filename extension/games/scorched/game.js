@@ -4,6 +4,7 @@
 // Weapons explode differently (deep digger, wide foundation breaker, cluster, guided, smart, drone).
 // Each ridge gets a scene: morning / noon / evening / night (big or small moon) / storm, with birds
 // or bats, distant explosions, lightning, rain and creaks.
+import { loadPack, draw as spr } from "../../shell/sprites.js";
 const W = 640, H = 400, G = 0.11;
 
 const DIFFICULTY = {
@@ -41,7 +42,7 @@ const SCENES = [
 
 export default function createScorched({ autopilot = false, difficulty = "intermediate" } = {}) {
   const diff = DIFFICULTY[difficulty] || DIFFICULTY.intermediate;
-  let T = null, tick = 0;
+  let T = null, tick = 0, pack = null, fires = []; loadPack("scorched").then(p => { pack = p; });
   const g = { id: "scorched", tps: 60, size: { width: W, height: H }, score: 0, level: 1, autopilot, init, update, render, onInput, onPointer, onHover, hud };
   let ground, tanks, turn, shells, wind, particles, popups, msg, msgTtl, shake, phase, phaseT, hoverAim, stars, scene, troops, flock, lightning, rain, farBooms, shop, ammo, weapon, aiAmmo, aiWeapon, lastMiss, tracers, bunkers, flags, reinforceT;
 
@@ -212,6 +213,7 @@ export default function createScorched({ autopilot = false, difficulty = "interm
     const n = def.r * 2.5;
     for (let i = 0; i < n; i++) { const a = sh.rng.next() * 6.28, sp = 1 + sh.rng.next() * (def.r / 7); particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5, ttl: 30 + sh.rng.int(40), color: i % 3 ? T?.marquee : T?.accent }); }
     shake = Math.min(30, def.r); sh.audio.hit();
+    if (pack?.sprites?.fire_295) fires.push({ x, y: y - def.r * 0.3, r: def.r, t: 0 });
     let dealt = 0, miss = null;
     for (const [i, t] of tanks.entries()) {
       const d = Math.hypot(t.x - x, t.y - 8 - y);
@@ -374,6 +376,7 @@ export default function createScorched({ autopilot = false, difficulty = "interm
     }
     for (const s of shells) {
       c.strokeStyle = T.marquee; c.lineWidth = 2; c.globalAlpha = 0.6; c.beginPath(); for (const [x, y] of s.trail) c.lineTo(x, y); c.stroke(); c.globalAlpha = 1;
+      if (pack?.sprites?.shell) { const def = WEAPONS[s.kind] || {}; const key = def.drone ? "drone" : (def.guided || def.smart) ? "missile_big" : def.cluster ? "missile" : "shell"; const rot = Math.atan2(s.vy, s.vx); if (spr(c, pack, key, s.x, s.y, { rot, scale: s.kind === "heavy" ? 1.4 : s.kind === "bomblet" ? 0.6 : 1 })) continue; }
       c.shadowColor = T.marquee; c.shadowBlur = 14; c.fillStyle = T.marquee;
       if (WEAPONS[s.kind]?.drone) { c.fillStyle = T.text; c.beginPath(); c.moveTo(s.x - 8, s.y); c.lineTo(s.x + 8, s.y); c.lineTo(s.x, s.y + 4); c.closePath(); c.fill(); c.fillRect(s.x - 1, s.y - 4, 2, 4); }
       else { c.beginPath(); c.arc(s.x, s.y, s.kind === "bomblet" ? 2.5 : s.kind === "heavy" ? 5 : 3.5, 0, 7); c.fill(); }
@@ -381,6 +384,8 @@ export default function createScorched({ autopilot = false, difficulty = "interm
     }
     for (const p of particles) { c.globalAlpha = Math.min(1, p.ttl / 20); c.fillStyle = p.color || T.marquee; c.beginPath(); c.arc(p.x, p.y, 2, 0, 7); c.fill(); }
     c.globalAlpha = 1;
+    fires = fires.filter(f => (f.t += 1) < 28);
+    for (const f of fires) { const frame = ["fire_295", "fire_296", "fire_297", "fire_298"][Math.min(3, Math.floor(f.t / 7))]; spr(c, pack, frame, f.x, f.y - f.t * 0.4, { scale: (0.8 + f.r / 30) * (1 + f.t / 40), alpha: 1 - f.t / 28 }); }
     drawTopBar(c, sh);
     for (const p of popups) { const k = 1 - p.ttl / 60; c.globalAlpha = Math.min(1, p.ttl / 15); c.fillStyle = p.color || T.text; c.font = "800 15px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.shadowColor = "#000"; c.shadowBlur = 6; c.fillText(p.text, p.x, p.y - k * 26); c.shadowBlur = 0; }
     c.globalAlpha = 1;
@@ -451,6 +456,18 @@ export default function createScorched({ autopilot = false, difficulty = "interm
   }
   function drawTank(c, t, color, active) {
     const x = t.x, y = t.y;
+    if (pack?.sprites?.tank_player) {
+      const who = t.ai ? "ai" : "player";
+      c.fillStyle = "#00000088"; rr(c, x - 18, y - 36, 36, 5, 2); c.fill();
+      c.fillStyle = t.hp > t.maxHp * 0.3 ? color : T.accent; rr(c, x - 18, y - 36, 36 * Math.max(0, t.hp) / t.maxHp, 5, 2); c.fill();
+      if (t.shield > 0) { c.globalAlpha = 0.25 + 0.1 * Math.sin(tick / 5); c.fillStyle = T.cyan; c.beginPath(); c.arc(x, y - 8, 26, 0, 7); c.fill(); c.globalAlpha = 0.8; c.strokeStyle = T.cyan; c.lineWidth = 1.5; c.stroke(); c.globalAlpha = 1; }
+      c.fillStyle = "#00000066"; c.beginPath(); c.ellipse(x + 2, y + 2, 18, 6, 0, 0, 7); c.fill();
+      spr(c, pack, "tank_" + who, x, y - 8);
+      spr(c, pack, "turret_" + who, x, y - 10, { rot: -t.angle * Math.PI / 180 });
+      if (active) { c.globalAlpha = 0.4 + 0.3 * Math.sin(tick / 6); c.strokeStyle = color; c.lineWidth = 2; c.beginPath(); c.arc(x, y - 6, 24, 0, 7); c.stroke(); c.globalAlpha = 1; }
+      c.fillStyle = "#fff"; c.font = "11px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.shadowColor = "#000"; c.shadowBlur = 4; c.fillText(t.name, x, y - 44); c.shadowBlur = 0;
+      return;
+    }
     c.fillStyle = "#00000088"; rr(c, x - 18, y - 36, 36, 5, 2); c.fill();
     c.fillStyle = t.hp > t.maxHp * 0.3 ? color : T.accent; rr(c, x - 18, y - 36, 36 * Math.max(0, t.hp) / t.maxHp, 5, 2); c.fill();
     if (t.shield > 0) { c.globalAlpha = 0.25 + 0.1 * Math.sin(tick / 5); c.fillStyle = T.cyan; c.beginPath(); c.arc(x, y - 8, 26, 0, 7); c.fill(); c.globalAlpha = 0.8; c.strokeStyle = T.cyan; c.lineWidth = 1.5; c.stroke(); c.globalAlpha = 1; }

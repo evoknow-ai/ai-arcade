@@ -3,6 +3,7 @@
 // threefold-repetition draws. The engine is alpha-beta minimax with piece-square tables; search depth
 // and randomness come from the difficulty. H asks the engine for a suggestion. Score: material you
 // win, checkmate bonus, credits for a win or draw.
+import { loadPack, draw as spr } from "../../shell/sprites.js";
 const W = 640, H = 480, SQ = 52, OX = 40, OY = 28;
 const VAL = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
 const GLYPH = { k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟" };
@@ -23,7 +24,7 @@ const PST = {
 
 export default function createChess({ autopilot = false, difficulty = "intermediate" } = {}) {
   const diff = DIFFICULTY[difficulty] || DIFFICULTY.intermediate;
-  let T = null, tick = 0;
+  let T = null, tick = 0, pack = null; loadPack("chess").then(p => { pack = p; });
   const g = { id: "chess", tps: 60, size: { width: W, height: H }, score: 0, level: 1, autopilot, init, update, render, onInput, onPointer, onPointerDown, onPointerUp, onHover, hud };
   let S, sel, legal, drag, hover, lastMove, thinking, over, hint, hintTtl, history, captured, msg, msgTtl, flipAnim, popups, moveNo, seen, replay, logScroll;
   const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
@@ -360,6 +361,7 @@ export default function createChess({ autopilot = false, difficulty = "intermedi
   function wrapText(c, text, x, y, maxW, lh) { const words = text.split(" "); let line = ""; for (const wd of words) { const t = line ? line + " " + wd : wd; if (c.measureText(t).width > maxW && line) { c.fillText(line, x, y); y += lh; line = wd; } else line = t; } if (line) { c.fillText(line, x, y); y += lh; } return y; }
   function piece(c, pc, x, y, scale = 1) {
     const white = pc[0] === "w";
+    if (spr(c, pack, "piece_" + pc, x, y, { scale })) return;
     c.save(); c.translate(x, y); c.scale(scale, scale);
     c.font = "800 40px 'Segoe UI Symbol','Apple Symbols','DejaVu Sans',system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
     c.fillStyle = "#00000066"; c.fillText(GLYPH[pc[1]], 2, 4);

@@ -1,6 +1,7 @@
 // Asteroid Belt — fly up through a scrolling belt. Arrows/WASD steer in all directions, Space fires.
 // Blast rocks, grab ore crystals for credits, pick up shields and rapid-fire. The belt thickens the
 // further you go; distance and ore both score. Three hulls, then it's over.
+import { loadPack, draw as spr } from "../../shell/sprites.js";
 const W = 420, H = 480;
 const DIFFICULTY = {
   beginner:     { name: "Beginner",     density: 0.016, speed: 1.4, hulls: 4 },
@@ -10,7 +11,7 @@ const DIFFICULTY = {
 
 export default function createBelt({ autopilot = false, difficulty = "intermediate" } = {}) {
   const diff = DIFFICULTY[difficulty] || DIFFICULTY.intermediate;
-  let T = null, tick = 0;
+  let T = null, tick = 0, pack = null; loadPack("space").then(p => { pack = p; });
   const g = { id: "belt", tps: 60, size: { width: W, height: H }, score: 0, level: 1, autopilot, init, update, render, onInput, hud };
   let ship, rocks, bullets, pickups, particles, popups, stars, hulls, dist, shield, rapid, fireCool, msg, msgTtl, shake, ore, respawn;
 
@@ -78,6 +79,7 @@ export default function createBelt({ autopilot = false, difficulty = "intermedia
     c.fillStyle = bg; c.fillRect(-10, -10, W + 20, H + 20);
     c.fillStyle = "#fff"; for (const [x, y, s] of stars) { c.globalAlpha = 0.15 + s * 0.5; c.fillRect(x, y, s > 1 ? 2 : 1, s > 1 ? 4 : 2); } c.globalAlpha = 1;
     for (const k of rocks) {
+      if (spr(c, pack, ["", "meteor_small", "meteor_med", "meteor_big"][k.size], k.x, k.y, { rot: k.rot })) { if (k.ore) { c.fillStyle = T.marquee; c.globalAlpha = 0.5 + 0.4 * Math.sin(tick / 6); c.beginPath(); c.arc(k.x, k.y, 3, 0, 7); c.fill(); c.globalAlpha = 1; } continue; }
       c.save(); c.translate(k.x, k.y); c.rotate(k.rot);
       c.beginPath(); k.pts.forEach((kk, i) => { const a = i / k.pts.length * 6.283; c.lineTo(Math.cos(a) * k.r * kk, Math.sin(a) * k.r * kk); }); c.closePath();
       const grd = c.createRadialGradient(-k.r * 0.3, -k.r * 0.3, 2, 0, 0, k.r); grd.addColorStop(0, shade(T.rock, 0.5)); grd.addColorStop(1, shade(T.rock, -0.45));
@@ -86,9 +88,10 @@ export default function createBelt({ autopilot = false, difficulty = "intermedia
       c.restore();
     }
     for (const p of pickups) { const col = p.kind === "ore" ? T.marquee : T.cyan; c.shadowColor = col; c.shadowBlur = 12; c.fillStyle = col; c.save(); c.translate(p.x, p.y); c.rotate(tick / 20); if (p.kind === "ore") { c.beginPath(); c.moveTo(0, -8); c.lineTo(6, 0); c.lineTo(0, 8); c.lineTo(-6, 0); c.closePath(); c.fill(); } else { c.beginPath(); c.arc(0, 0, 7, 0, 7); c.fill(); c.fillStyle = "#000"; c.font = "800 9px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.rotate(-tick / 20); c.fillText(p.kind === "shield" ? "S" : "R", 0, 1); } c.restore(); c.shadowBlur = 0; }
-    for (const b of bullets) { c.shadowColor = T.cyan; c.shadowBlur = 8; c.fillStyle = "#fff"; c.fillRect(b.x - 1.5, b.y - 6, 3, 10); c.shadowBlur = 0; }
+    for (const b of bullets) { if (spr(c, pack, "laser", b.x, b.y, { rot: -Math.PI / 2 })) continue; c.shadowColor = T.cyan; c.shadowBlur = 8; c.fillStyle = "#fff"; c.fillRect(b.x - 1.5, b.y - 6, 3, 10); c.shadowBlur = 0; }
     for (const p of particles) { c.globalAlpha = Math.min(1, p.ttl / 10); c.fillStyle = p.color || "#fff"; c.fillRect(p.x, p.y, 2, 2); } c.globalAlpha = 1;
-    if (ship) {
+    if (ship && pack?.sprites?.ship) { if (shield > 0 || ship.inv > 0) { c.globalAlpha = (shield > 0 ? 0.3 : 0.15) + 0.1 * Math.sin(tick / 4); c.fillStyle = T.cyan; c.beginPath(); c.arc(ship.x, ship.y, 22, 0, 7); c.fill(); c.globalAlpha = 1; } spr(c, pack, "flame", ship.x, ship.y + 16, { rot: Math.PI / 2 }); spr(c, pack, "ship", ship.x, ship.y, { rot: -Math.PI / 2 + ship.vx * 0.08 }); }
+    else if (ship) {
       c.save(); c.translate(ship.x, ship.y); c.rotate(ship.vx * 0.08);
       if (shield > 0 || ship.inv > 0) { c.globalAlpha = (shield > 0 ? 0.3 : 0.15) + 0.1 * Math.sin(tick / 4); c.fillStyle = T.cyan; c.beginPath(); c.arc(0, 0, 22, 0, 7); c.fill(); c.globalAlpha = 1; }
       const grd = c.createLinearGradient(-12, 0, 12, 0); grd.addColorStop(0, shade(T.cyan, -0.3)); grd.addColorStop(0.5, shade(T.cyan, 0.5)); grd.addColorStop(1, shade(T.cyan, -0.3));

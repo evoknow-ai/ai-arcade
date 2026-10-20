@@ -1,0 +1,12 @@
+{ "scale": 0.5, "credit": "Kenney Tower Defense (top-down), CC0 — kenney.nl",
+  "sprites": {
+    "tank_player": { "file": "tank_player.png", "rot": 0 },
+    "tank_ai":     { "file": "tank_ai.png", "rot": 0 },
+    "turret_player": { "file": "turret_player.png", "rot": 1.5708, "anchor": [0.5, 0.55] },
+    "turret_ai":   { "file": "turret_ai.png", "rot": 1.5708, "anchor": [0.5, 0.55] },
+    "missile":     { "file": "missile.png", "rot": 1.5708 },
+    "missile_big": { "file": "missile_big.png", "rot": 1.5708 },
+    "shell":       { "file": "shell.png" },
+    "drone":       { "file": "drone.png", "rot": 1.5708 },
+    "fire_295": { "file": "fire_295.png" }, "fire_296": { "file": "fire_296.png" }, "fire_297": { "file": "fire_297.png" }, "fire_298": { "file": "fire_298.png" }
+  } }

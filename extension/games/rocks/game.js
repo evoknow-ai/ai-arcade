@@ -1,6 +1,7 @@
 // Rock Field — spin, thrust, shoot. ←/→ rotate, ↑ thrust, Space fires, ↓ hyperspace (random jump,
 // risky). Rocks split into smaller rocks; a saucer shows up now and then and shoots back. Three lives,
 // a brief shield after each respawn, extra life every 10,000. The autopilot plays attract mode.
+import { loadPack, draw as spr } from "../../shell/sprites.js";
 const W = 600, H = 440;
 const DIFFICULTY = {
   beginner:     { name: "Beginner",     rocks: 3, speed: 0.7, lives: 4, saucer: 0.0008 },
@@ -10,7 +11,7 @@ const DIFFICULTY = {
 
 export default function createRocks({ autopilot = false, difficulty = "intermediate" } = {}) {
   const diff = DIFFICULTY[difficulty] || DIFFICULTY.intermediate;
-  let T = null, tick = 0;
+  let T = null, tick = 0, pack = null; loadPack("space").then(p => { pack = p; });
   const g = { id: "rocks", tps: 60, size: { width: W, height: H }, score: 0, level: 1, autopilot, init, update, render, onInput, hud };
   let ship, rocks, bullets, saucer, sBullets, particles, popups, lives, msg, msgTtl, shake, stars, nextLife, fireCool;
 
@@ -85,17 +86,19 @@ export default function createRocks({ autopilot = false, difficulty = "intermedi
     c.fillStyle = bg; c.fillRect(-10, -10, W + 20, H + 20);
     c.fillStyle = "#fff"; for (const [x, y, s] of stars) { c.globalAlpha = 0.2 + 0.6 * Math.abs(Math.sin(tick / 45 + s * 8)); c.fillRect(x, y, s > 0.85 ? 2 : 1, s > 0.85 ? 2 : 1); } c.globalAlpha = 1;
     for (const r of rocks) {
+      if (spr(c, pack, ["", "meteor_small", "meteor_med", "meteor_big"][r.size], r.x, r.y, { rot: r.rot })) continue;
       c.save(); c.translate(r.x, r.y); c.rotate(r.rot);
       c.beginPath(); r.pts.forEach((k, i) => { const a = i / r.pts.length * 6.283; c.lineTo(Math.cos(a) * r.r * k, Math.sin(a) * r.r * k); }); c.closePath();
       const grd = c.createRadialGradient(-r.r * 0.3, -r.r * 0.3, 2, 0, 0, r.r); grd.addColorStop(0, shade(T.rock, 0.5)); grd.addColorStop(1, shade(T.rock, -0.45));
       c.fillStyle = grd; c.shadowColor = "#000"; c.shadowBlur = 10; c.fill(); c.shadowBlur = 0; c.strokeStyle = shade(T.rock, 0.25); c.lineWidth = 1.5; c.stroke();
       c.restore();
     }
-    if (saucer) { c.fillStyle = shade(T.cyan, -0.2); c.beginPath(); c.ellipse(saucer.x, saucer.y, saucer.r * 1.6, saucer.r * 0.5, 0, 0, 7); c.fill(); c.fillStyle = shade(T.cyan, 0.4); c.beginPath(); c.arc(saucer.x, saucer.y - 3, saucer.r * 0.6, Math.PI, 0); c.fill(); c.fillStyle = T.accent; c.globalAlpha = 0.6 + 0.4 * Math.sin(tick / 4); c.beginPath(); c.arc(saucer.x, saucer.y - 1, 2, 0, 7); c.fill(); c.globalAlpha = 1; }
-    for (const b of bullets) { c.shadowColor = T.marquee; c.shadowBlur = 8; c.fillStyle = "#fff"; c.beginPath(); c.arc(b.x, b.y, 2, 0, 7); c.fill(); c.shadowBlur = 0; }
+    if (saucer && spr(c, pack, "ufo", saucer.x, saucer.y, { rot: tick / 40, scale: saucer.big ? 1.3 : 0.9 })) {} else if (saucer) { c.fillStyle = shade(T.cyan, -0.2); c.beginPath(); c.ellipse(saucer.x, saucer.y, saucer.r * 1.6, saucer.r * 0.5, 0, 0, 7); c.fill(); c.fillStyle = shade(T.cyan, 0.4); c.beginPath(); c.arc(saucer.x, saucer.y - 3, saucer.r * 0.6, Math.PI, 0); c.fill(); c.fillStyle = T.accent; c.globalAlpha = 0.6 + 0.4 * Math.sin(tick / 4); c.beginPath(); c.arc(saucer.x, saucer.y - 1, 2, 0, 7); c.fill(); c.globalAlpha = 1; }
+    for (const b of bullets) { if (spr(c, pack, "laser", b.x, b.y, { rot: Math.atan2(b.vy, b.vx) })) continue; c.shadowColor = T.marquee; c.shadowBlur = 8; c.fillStyle = "#fff"; c.beginPath(); c.arc(b.x, b.y, 2, 0, 7); c.fill(); c.shadowBlur = 0; }
     for (const b of sBullets) { c.shadowColor = T.accent; c.shadowBlur = 8; c.fillStyle = T.accent; c.beginPath(); c.arc(b.x, b.y, 2.5, 0, 7); c.fill(); c.shadowBlur = 0; }
     for (const p of particles) { c.globalAlpha = Math.min(1, p.ttl / 12); c.fillStyle = p.color || "#fff"; c.fillRect(p.x, p.y, 2, 2); } c.globalAlpha = 1;
-    if (ship) {
+    if (ship && pack?.sprites?.ship) { if (ship.shield > 0) { c.globalAlpha = 0.25 + 0.15 * Math.sin(tick / 4); c.fillStyle = T.cyan; c.beginPath(); c.arc(ship.x, ship.y, 22, 0, 7); c.fill(); c.globalAlpha = 1; } if (ship.thrust) spr(c, pack, "flame", ship.x - Math.cos(ship.a) * 16, ship.y - Math.sin(ship.a) * 16, { rot: ship.a + Math.PI }); spr(c, pack, "ship", ship.x, ship.y, { rot: ship.a }); }
+    else if (ship) {
       c.save(); c.translate(ship.x, ship.y); c.rotate(ship.a);
       if (ship.shield > 0) { c.globalAlpha = 0.25 + 0.15 * Math.sin(tick / 4); c.fillStyle = T.cyan; c.beginPath(); c.arc(0, 0, 20, 0, 7); c.fill(); c.globalAlpha = 1; }
       if (ship.thrust) { c.fillStyle = T.marquee; c.shadowColor = T.marquee; c.shadowBlur = 14; c.beginPath(); c.moveTo(-10, -5); c.lineTo(-18 - Math.random() * 8, 0); c.lineTo(-10, 5); c.closePath(); c.fill(); c.shadowBlur = 0; }
