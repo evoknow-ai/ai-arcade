@@ -223,3 +223,5 @@ dialog.credits-page li b, dialog.credits-page p b { color: var(--paper); }
 .inspired { display: grid; grid-template-columns: 140px 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
 .inspired dt { font-weight: 600; color: var(--paper); }
 .inspired dd { margin: 0; color: var(--paper-dim); }
+dialog.credits-page a { color: var(--cyan); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--cyan) 50%, transparent); }
+dialog.credits-page a:hover { border-bottom-color: var(--cyan); }
