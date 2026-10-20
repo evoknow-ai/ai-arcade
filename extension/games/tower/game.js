@@ -2,6 +2,7 @@
 // to build, click a tower to select it (U upgrades, S sells), Space calls the next wave early for bonus
 // gold. Five towers (arrow, cannon, frost, tesla, sniper), five enemies (runner, grunt, tank, flyer,
 // boss), three maps that rotate every five waves. 20 lives. Credits paid per wave cleared.
+import { loadPack, draw as spr } from "../../shell/sprites.js";
 const COLS = 16, ROWS = 11, CELL = 36, W = COLS * CELL, H = ROWS * CELL + 44, TOP = 44;
 const DIFFICULTY = {
   beginner:     { name: "Beginner",     gold: 260, hp: 0.8, lives: 25 },
@@ -151,10 +152,17 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
 
   // ---------- render ----------
   // terrain is painted once per map into an offscreen layer (Chrome); falls back to direct drawing
-  let terrain = null, terrainMap = -1;
+  let terrain = null, terrainMap = -1, pack = null; loadPack("tower").then(p => { pack = p; terrain = null; terrainMap = -1; });
   function paintTerrain(c) {
     const pal = [{ g1: "#4E9A4A", g2: "#3C7F3A", road: "#C9B58A", edge: "#8F7A52", rock: "#8A9A8A" }, { g1: "#C49A62", g2: "#A77D4A", road: "#E7D3A6", edge: "#8A6B3F", rock: "#9C8A74" }, { g1: "#DCE9F2", g2: "#C3D4E2", road: "#9DB0C2", edge: "#6F8395", rock: "#8B9AAB" }][map];
-    const gg = c.createLinearGradient(0, TOP, 0, H); gg.addColorStop(0, pal.g1); gg.addColorStop(1, pal.g2); c.fillStyle = gg; c.fillRect(0, TOP, W, H - TOP);
+    if (pack?.sprites?.tile_grass) { for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) spr(c, pack, "tile_grass", cx(x), cy(y)); }
+    else { const gg = c.createLinearGradient(0, TOP, 0, H); gg.addColorStop(0, pal.g1); gg.addColorStop(1, pal.g2); c.fillStyle = gg; c.fillRect(0, TOP, W, H - TOP); }
+    if (pack?.sprites?.tile_road) {
+      for (let i = 0; i < path.length; i++) { const [x, y] = path[i]; if (x < 0 || y < 0 || x >= COLS || y >= ROWS) continue; const prev = path[i - 1] || path[i], next = path[i + 1] || path[i]; const dx = Math.sign(next[0] - prev[0]), dy = Math.sign(next[1] - prev[1]); const turn = prev[0] !== next[0] && prev[1] !== next[1] && pack.sprites.tile_road_turn; spr(c, pack, turn ? "tile_road_turn" : "tile_road", cx(x), cy(y), { rot: turn ? turnRot(prev, [x, y], next) : (dx ? 0 : Math.PI / 2) }); }
+      for (const d of decor) { const k = ["tree", "rock", "flowers"][d.k]; spr(c, pack, k, cx(d.x), cy(d.y)) || drawDecor(c, d, pal); }
+      const vg2 = c.createRadialGradient(W / 2, (TOP + H) / 2, H * 0.35, W / 2, (TOP + H) / 2, H * 0.85); vg2.addColorStop(0, "rgba(0,0,0,0)"); vg2.addColorStop(1, "rgba(0,0,0,0.3)"); c.fillStyle = vg2; c.fillRect(0, TOP, W, H - TOP);
+      return;
+    }
     // soft mottling
     for (let i = 0; i < 160; i++) { const x = (i * 97) % W, y = TOP + (i * 61) % (H - TOP), r = 14 + (i % 5) * 6; const m = c.createRadialGradient(x, y, 0, x, y, r); m.addColorStop(0, i % 2 ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)"); m.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = m; c.fillRect(x - r, y - r, r * 2, r * 2); }
     // road: wide rounded polyline with edge, body, and a worn centre
@@ -167,15 +175,17 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
     // grass tufts along the edges of the road
     c.fillStyle = shade(pal.g1, 0.25);
     for (let i = 1; i < pts.length - 1; i += 1) { const [x, y] = pts[i]; for (const [ox, oy] of [[-CELL * 0.5, -CELL * 0.5], [CELL * 0.5, CELL * 0.5], [CELL * 0.5, -CELL * 0.5], [-CELL * 0.5, CELL * 0.5]]) { const tx = x + ox, ty = y + oy; if (pathCells.has(Math.floor(ty > TOP ? (ty - TOP) / CELL : 0) * COLS + Math.floor(tx / CELL))) continue; for (let b = 0; b < 3; b++) { c.beginPath(); c.moveTo(tx - 3 + b * 3, ty + 4); c.lineTo(tx - 2 + b * 3, ty - 3); c.lineTo(tx - 1 + b * 3, ty + 4); c.fill(); } } }
-    // decor: trees with canopy shading, rocks, flowers
-    for (const d of decor) {
-      const x = cx(d.x), y = cy(d.y);
+    for (const d of decor) drawDecor(c, d, pal);
+    // vignette
+    const vg = c.createRadialGradient(W / 2, (TOP + H) / 2, H * 0.35, W / 2, (TOP + H) / 2, H * 0.85); vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,0.35)"); c.fillStyle = vg; c.fillRect(0, TOP, W, H - TOP);
+  }
+  function turnRot(prev, cur, next) { const inD = [cur[0] - prev[0], cur[1] - prev[1]], outD = [next[0] - cur[0], next[1] - cur[1]]; const k = `${inD}|${outD}`; return { "1,0|0,1": 0, "0,-1|-1,0": 0, "0,1|-1,0": Math.PI / 2, "1,0|0,-1": Math.PI / 2, "-1,0|0,-1": Math.PI, "0,1|1,0": Math.PI, "0,-1|1,0": -Math.PI / 2, "-1,0|0,1": -Math.PI / 2 }[k] || 0; }
+  function drawDecor(c, d, pal) {
+    { const x = cx(d.x), y = cy(d.y);
       if (d.k === 0) { c.fillStyle = "rgba(0,0,0,0.25)"; c.beginPath(); c.ellipse(x + 6, y + 12, 12, 5, 0, 0, 7); c.fill(); c.fillStyle = "#5A3A1E"; c.fillRect(x - 2, y + 2, 4, 9); const cg = c.createRadialGradient(x - 4, y - 6, 2, x, y - 2, 13); cg.addColorStop(0, map === 2 ? "#4E8A5A" : shade(pal.g1, 0.45)); cg.addColorStop(1, map === 2 ? "#1E4A33" : shade(pal.g2, -0.45)); c.fillStyle = cg; c.beginPath(); c.arc(x, y - 2, 12, 0, 7); c.arc(x - 7, y + 2, 8, 0, 7); c.arc(x + 7, y + 2, 8, 0, 7); c.fill(); if (map === 2) { c.fillStyle = "#F4F7FB"; c.beginPath(); c.arc(x - 2, y - 9, 5, 0, 7); c.arc(x + 6, y - 4, 3.5, 0, 7); c.fill(); } }
       else if (d.k === 1) { c.fillStyle = "rgba(0,0,0,0.25)"; c.beginPath(); c.ellipse(x + 3, y + 5, 9, 4, 0, 0, 7); c.fill(); const rg = c.createRadialGradient(x - 3, y - 3, 1, x, y, 9); rg.addColorStop(0, shade(pal.rock, 0.5)); rg.addColorStop(1, shade(pal.rock, -0.5)); c.fillStyle = rg; c.beginPath(); c.moveTo(x - 9, y + 4); c.lineTo(x - 6, y - 5); c.lineTo(x + 2, y - 7); c.lineTo(x + 9, y - 1); c.lineTo(x + 7, y + 5); c.closePath(); c.fill(); }
       else { for (let i = 0; i < 3; i++) { const fx = x - 6 + i * 6, fy = y + (i % 2) * 4; c.fillStyle = ["#FF7AA6", "#FFD66B", "#9FD8FF"][(i + d.x) % 3]; c.beginPath(); c.arc(fx, fy, 2.2, 0, 7); c.fill(); c.fillStyle = "#fff"; c.beginPath(); c.arc(fx, fy, 0.8, 0, 7); c.fill(); } }
     }
-    // vignette
-    const vg = c.createRadialGradient(W / 2, (TOP + H) / 2, H * 0.35, W / 2, (TOP + H) / 2, H * 0.85); vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,0.35)"); c.fillStyle = vg; c.fillRect(0, TOP, W, H - TOP);
   }
   function drawTerrain(c) {
     if (terrainMap !== map) { terrain = null; terrainMap = map; try { if (typeof OffscreenCanvas !== "undefined") { terrain = new OffscreenCanvas(W, H); paintTerrain(terrain.getContext("2d")); } } catch { terrain = null; } }
@@ -192,16 +202,20 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
     // base (crystal) and spawn (portal)
     const [ex, ey] = path[path.length - 1], [sx, sy] = path[0];
     const bx = Math.max(10, Math.min(W - 10, cx(ex))), by = Math.max(TOP + 10, Math.min(H - 10, cy(ey)));
+    if (spr(c, pack, "base_crystal", bx, by)) { /* sprite base */ } else {
     c.fillStyle = "rgba(0,0,0,0.3)"; c.beginPath(); c.ellipse(bx, by + 12, 16, 6, 0, 0, 7); c.fill();
-    c.shadowColor = T.cyan; c.shadowBlur = 24 + 8 * Math.sin(tick / 8); const cg = c.createLinearGradient(bx - 10, by - 20, bx + 10, by + 10); cg.addColorStop(0, "#fff"); cg.addColorStop(0.4, T.cyan); cg.addColorStop(1, shade(T.cyan, -0.5)); c.fillStyle = cg; c.beginPath(); c.moveTo(bx, by - 22); c.lineTo(bx + 11, by - 4); c.lineTo(bx, by + 12); c.lineTo(bx - 11, by - 4); c.closePath(); c.fill(); c.shadowBlur = 0;
+    c.shadowColor = T.cyan; c.shadowBlur = 24 + 8 * Math.sin(tick / 8); const cg = c.createLinearGradient(bx - 10, by - 20, bx + 10, by + 10); cg.addColorStop(0, "#fff"); cg.addColorStop(0.4, T.cyan); cg.addColorStop(1, shade(T.cyan, -0.5)); c.fillStyle = cg; c.beginPath(); c.moveTo(bx, by - 22); c.lineTo(bx + 11, by - 4); c.lineTo(bx, by + 12); c.lineTo(bx - 11, by - 4); c.closePath(); c.fill(); c.shadowBlur = 0; }
     const px0 = Math.max(10, Math.min(W - 10, cx(sx))), py0 = Math.max(TOP + 10, Math.min(H - 10, cy(sy)));
-    const pg = c.createRadialGradient(px0, py0, 2, px0, py0, 16); pg.addColorStop(0, "#fff"); pg.addColorStop(0.3, T.accent); pg.addColorStop(1, "rgba(255,92,168,0)"); c.fillStyle = pg; c.globalAlpha = 0.7 + 0.3 * Math.sin(tick / 6); c.beginPath(); c.arc(px0, py0, 16, 0, 7); c.fill(); c.globalAlpha = 1; c.strokeStyle = T.accent; c.lineWidth = 2; c.beginPath(); c.arc(px0, py0, 12 + 3 * Math.sin(tick / 5), 0, 7); c.stroke();
+    if (!spr(c, pack, "spawn_portal", px0, py0, { rot: tick / 30 })) {
+    const pg = c.createRadialGradient(px0, py0, 2, px0, py0, 16); pg.addColorStop(0, "#fff"); pg.addColorStop(0.3, T.accent); pg.addColorStop(1, "rgba(255,92,168,0)"); c.fillStyle = pg; c.globalAlpha = 0.7 + 0.3 * Math.sin(tick / 6); c.beginPath(); c.arc(px0, py0, 16, 0, 7); c.fill(); c.globalAlpha = 1; c.strokeStyle = T.accent; c.lineWidth = 2; c.beginPath(); c.arc(px0, py0, 12 + 3 * Math.sin(tick / 5), 0, 7); c.stroke(); }
     // build ghost / selection
     if (building && hover && !g.autopilot) { const def = TOWERS[building], ok = !pathCells.has(hover.y * COLS + hover.x) && !towerAt(hover) && gold >= def.cost; c.globalAlpha = 0.16; c.fillStyle = ok ? def.color : T.accent; c.beginPath(); c.arc(cx(hover.x), cy(hover.y), def.range, 0, 7); c.fill(); c.globalAlpha = 0.5; c.strokeStyle = ok ? def.color : T.accent; c.lineWidth = 1.5; c.setLineDash([4, 4]); c.beginPath(); c.arc(cx(hover.x), cy(hover.y), def.range, 0, 7); c.stroke(); c.setLineDash([]); c.globalAlpha = 0.65; drawTower(c, { id: building, x: hover.x, y: hover.y, lvl: 1, ang: 0 }); c.globalAlpha = 1; }
     if (selected) { c.globalAlpha = 0.13; c.fillStyle = TOWERS[selected.id].color; c.beginPath(); c.arc(cx(selected.x), cy(selected.y), stat(selected, "range"), 0, 7); c.fill(); c.globalAlpha = 0.8; c.strokeStyle = "#fff"; c.lineWidth = 1.5; c.setLineDash([4, 4]); c.beginPath(); c.arc(cx(selected.x), cy(selected.y), stat(selected, "range"), 0, 7); c.stroke(); c.setLineDash([]); c.globalAlpha = 1; }
     const draws = [...towers.map(w => ({ y: cy(w.y), f: () => drawTower(c, w) })), ...enemies.map(e => ({ y: e.y + (e.fly ? 60 : 0), f: () => drawEnemy(c, e) }))].sort((a, b) => a.y - b.y);
     for (const d of draws) d.f();
     for (const s of shots) {
+      const key = s.big ? "shot_shell" : s.slow ? "shot_ice" : "shot_arrow";
+      if (pack?.sprites?.[key]) { spr(c, pack, key, s.x, s.y, { rot: Math.atan2(s.target.y - s.y, s.target.x - s.x) }); continue; }
       if (s.big) { c.fillStyle = "rgba(60,60,60,0.35)"; s.trail.forEach(([x, y], i) => { c.globalAlpha = (i + 1) / s.trail.length * 0.4; c.beginPath(); c.arc(x, y, 3 + (s.trail.length - i), 0, 7); c.fill(); }); c.globalAlpha = 1; const sg = c.createRadialGradient(s.x - 1, s.y - 1, 1, s.x, s.y, 5); sg.addColorStop(0, "#888"); sg.addColorStop(1, "#111"); c.fillStyle = sg; c.beginPath(); c.arc(s.x, s.y, 5, 0, 7); c.fill(); }
       else if (s.slow) { c.save(); c.translate(s.x, s.y); c.rotate(tick / 4); c.fillStyle = "#DFF4FF"; c.shadowColor = "#8ED3FF"; c.shadowBlur = 10; c.beginPath(); for (let i = 0; i < 6; i++) { c.lineTo(Math.cos(i * 1.047) * 5, Math.sin(i * 1.047) * 5); c.lineTo(Math.cos(i * 1.047 + 0.52) * 2, Math.sin(i * 1.047 + 0.52) * 2); } c.closePath(); c.fill(); c.restore(); c.shadowBlur = 0; }
       else { const ang = Math.atan2(s.target.y - s.y, s.target.x - s.x); c.save(); c.translate(s.x, s.y); c.rotate(ang); c.strokeStyle = "#E9DCC1"; c.lineWidth = 2; c.beginPath(); c.moveTo(-9, 0); c.lineTo(5, 0); c.stroke(); c.fillStyle = "#fff"; c.beginPath(); c.moveTo(5, -2.5); c.lineTo(10, 0); c.lineTo(5, 2.5); c.closePath(); c.fill(); c.fillStyle = s.color; c.beginPath(); c.moveTo(-9, -2.5); c.lineTo(-6, 0); c.lineTo(-9, 2.5); c.closePath(); c.fill(); c.restore(); }
@@ -239,6 +253,7 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
   }
   function drawTower(c, w) {
     const x = cx(w.x), y = cy(w.y), col = TOWERS[w.id].color, lvl = w.lvl || 1;
+    if (pack?.sprites?.["turret_" + w.id]) { spr(c, pack, "base_plinth", x, y); spr(c, pack, "turret_" + w.id, x, y - 2, { rot: w.ang || 0, scale: 1 + (lvl - 1) * 0.08 }); for (let i = 0; i < lvl; i++) { c.fillStyle = T.marquee; c.beginPath(); c.arc(x - 6 + i * 6, y + 14, 2, 0, 7); c.fill(); } return; }
     c.fillStyle = "rgba(0,0,0,0.35)"; c.beginPath(); c.ellipse(x + 3, y + 9, 15, 7, 0, 0, 7); c.fill();
     // stone plinth with rim; gold rim at max level
     const pg = c.createLinearGradient(x, y - 14, x, y + 10); pg.addColorStop(0, "#9AA3B2"); pg.addColorStop(0.5, "#5F6978"); pg.addColorStop(1, "#2E343E"); c.fillStyle = pg; rr(c, x - 14, y - 8, 28, 18, 6); c.fill();
@@ -251,6 +266,13 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
   }
   function drawEnemy(c, e) {
     const def = ENEMIES[e.kind], r = def.r, bob = e.fly ? Math.sin(tick / 6 + e.wob) * 3 : 0, y = e.y + bob - (e.fly ? 14 : 0);
+    if (pack?.sprites?.["enemy_" + e.kind]) {
+      const nxt = e.fly ? path[path.length - 1] : path[Math.min(path.length - 1, e.seg + 1)]; const rot = Math.atan2(cy(nxt[1]) - e.y, cx(nxt[0]) - e.x);
+      if (e.fly) { c.fillStyle = "rgba(0,0,0,0.3)"; c.beginPath(); c.ellipse(e.x + 2, e.y + r * 0.6, r, r * 0.45, 0, 0, 7); c.fill(); }
+      spr(c, pack, "enemy_" + e.kind, e.x, y, { rot, frame: Math.floor(tick / 8), alpha: e.hit > 0 ? 0.6 : 1 });
+      if (e.slow > 0) { c.fillStyle = "#DFF4FF"; c.globalAlpha = 0.8; for (let i = 0; i < 3; i++) c.fillRect(e.x - r + i * r, y - r - 6 - (tick + i * 7) % 8, 2, 2); c.globalAlpha = 1; }
+      c.fillStyle = "rgba(0,0,0,0.6)"; rr(c, e.x - r - 1, y - r - 8, r * 2 + 2, 4, 2); c.fill(); c.fillStyle = e.hp / e.max > 0.5 ? "#4CD964" : e.hp / e.max > 0.25 ? T.marquee : T.accent; rr(c, e.x - r, y - r - 7.5, r * 2 * Math.max(0, e.hp / e.max), 3, 1.5); c.fill(); return;
+    }
     const col = e.hit > 0 ? "#fff" : e.slow > 0 ? "#8ED3FF" : def.color;
     c.fillStyle = "rgba(0,0,0,0.3)"; c.beginPath(); c.ellipse(e.x + 2, e.y + r * 0.6, r, r * 0.45, 0, 0, 7); c.fill();
     const grd = c.createRadialGradient(e.x - r * 0.35, y - r * 0.35, 1, e.x, y, r); grd.addColorStop(0, shade(col, 0.45)); grd.addColorStop(1, shade(col, -0.4));

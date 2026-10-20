@@ -285,6 +285,7 @@ const ICONS = {
   invaders: `<svg viewBox="0 0 40 40" fill="var(--genre)"><rect x="12" y="8" width="4" height="4"/><rect x="24" y="8" width="4" height="4"/><rect x="8" y="12" width="24" height="4"/><rect x="4" y="16" width="32" height="8"/><rect x="8" y="24" width="4" height="4"/><rect x="28" y="24" width="4" height="4"/><rect x="12" y="28" width="4" height="4"/><rect x="24" y="28" width="4" height="4"/></svg>`,
   rails: `<svg viewBox="0 0 40 40" fill="none" stroke="var(--genre)" stroke-width="2.5" stroke-linecap="round"><path d="M4 12h32M4 28h32"/><path d="M12 12c8 0 8 16 16 16"/><path d="M8 8v8M32 24v8"/></svg>`,
   chess: `<svg viewBox="0 0 40 40" fill="var(--genre)"><path d="M14 34h12v-3H14zM15 29h10l-2-9h-6z"/><path d="M16 18h8l2-6-3 2-3-6-3 6-3-2z"/></svg>`,
+  tower: `<svg viewBox="0 0 40 40" fill="var(--genre)"><path d="M10 34h20v-4H10zM13 30h14V16H13z"/><path d="M11 16h18v-5h-4v3h-3v-3h-4v3h-3v-3h-4z"/><circle cx="20" cy="22" r="3" fill="#000" fill-opacity=".4"/></svg>`,
   default: `<svg viewBox="0 0 40 40" fill="var(--genre)"><circle cx="20" cy="20" r="8"/></svg>`,
 };
 
