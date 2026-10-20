@@ -93,3 +93,9 @@ Names are 2–12 chars, filtered for profanity. Score posts are rate limited per
 - [ ] Global leaderboard on eatsleepai.us (server already written; needs PipeDream replay port)
 - [ ] Ghost replay of the #1 run
 - [ ] Chrome Web Store listing
+
+## Sprite packs
+
+Games can swap their vector art for real sprites: drop PNGs + `manifest.json` into `extension/sprites/<game>/`
+(see `shell/sprites.js` and each pack's README). Tower Defence ships with tiles from
+[Kenney's Tower Defense (top-down)](https://kenney.nl/assets/tower-defense-top-down) pack, CC0.

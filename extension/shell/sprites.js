@@ -2,7 +2,8 @@
 // listed PNGs are loaded and the game draws them (rotating as needed). If the pack is missing the
 // loader resolves to null and the game keeps its vector fallback, so the extension never breaks.
 //
-// manifest.json: { "scale": 1, "sprites": { "name": { "file": "x.png", "w": 64, "h": 64, "anchor": [0.5, 0.5], "frames": 1 } } }
+// manifest.json: { "scale": 1, "sprites": { "name": { "file": "x.png", "anchor": [0.5, 0.5], "frames": 1, "rot": 0, "scale": 1 } } }
+// `rot` is the sprite's own facing offset (radians) so art drawn facing up can be rotated to face right.
 const cache = new Map();
 export async function loadPack(name) {
   if (cache.has(name)) return cache.get(name);
@@ -15,7 +16,7 @@ export async function loadPack(name) {
       await Promise.all(Object.entries(man.sprites).map(async ([k, s]) => {
         const img = new Image(); img.src = new URL(s.file, base).href;
         await new Promise((ok, no) => { img.onload = ok; img.onerror = no; }).catch(() => null);
-        if (img.complete && img.naturalWidth) out.sprites[k] = { img, w: s.w || img.naturalWidth, h: s.h || img.naturalHeight, ax: s.anchor?.[0] ?? 0.5, ay: s.anchor?.[1] ?? 0.5, frames: s.frames || 1 };
+        if (img.complete && img.naturalWidth) out.sprites[k] = { img, w: s.w || img.naturalWidth, h: s.h || img.naturalHeight, ax: s.anchor?.[0] ?? 0.5, ay: s.anchor?.[1] ?? 0.5, frames: s.frames || 1, rot: s.rot || 0, scale: s.scale || 1 };
       }));
       return Object.keys(out.sprites).length ? out : null;
     } catch { return null; }
@@ -26,7 +27,7 @@ export async function loadPack(name) {
 export function draw(c, pack, k, x, y, { rot = 0, scale = 1, frame = 0, alpha = 1 } = {}) {
   const s = pack?.sprites?.[k]; if (!s) return false;
   const fw = s.w / s.frames;
-  c.save(); c.translate(x, y); c.rotate(rot); c.scale(scale * pack.scale, scale * pack.scale); c.globalAlpha *= alpha;
+  c.save(); c.translate(x, y); c.rotate(rot + s.rot); c.scale(scale * pack.scale * s.scale, scale * pack.scale * s.scale); c.globalAlpha *= alpha;
   c.drawImage(s.img, (frame % s.frames) * fw, 0, fw, s.h, -fw * s.ax, -s.h * s.ay, fw, s.h);
   c.restore(); return true;
 }

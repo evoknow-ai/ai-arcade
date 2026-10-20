@@ -1,0 +1,92 @@
+{
+ "scale": 0.5625,
+ "credit": "Kenney Tower Defense (top-down), CC0 \u2014 kenney.nl",
+ "sprites": {
+  "tile_grass": {
+   "file": "tile_grass.png"
+  },
+  "tile_road": {
+   "file": "tile_road.png"
+  },
+  "tree": {
+   "file": "tree.png"
+  },
+  "tree2": {
+   "file": "tree2.png"
+  },
+  "rock": {
+   "file": "rock.png"
+  },
+  "rock2": {
+   "file": "rock2.png"
+  },
+  "flowers": {
+   "file": "flowers.png"
+  },
+  "base_plinth": {
+   "file": "base_plinth.png"
+  },
+  "turret_arrow": {
+   "file": "turret_arrow.png",
+   "rot": 1.5708,
+   "anchor": [
+    0.5,
+    0.5
+   ]
+  },
+  "turret_cannon": {
+   "file": "turret_cannon.png",
+   "rot": 1.5708
+  },
+  "turret_frost": {
+   "file": "turret_frost.png",
+   "rot": 1.5708
+  },
+  "turret_tesla": {
+   "file": "turret_tesla.png",
+   "rot": 1.5708
+  },
+  "turret_sniper": {
+   "file": "turret_sniper.png",
+   "rot": 1.5708
+  },
+  "enemy_runner": {
+   "file": "enemy_runner.png",
+   "rot": 1.5708
+  },
+  "enemy_grunt": {
+   "file": "enemy_grunt.png",
+   "rot": 1.5708
+  },
+  "enemy_tank": {
+   "file": "enemy_tank.png",
+   "rot": 0
+  },
+  "enemy_flyer": {
+   "file": "enemy_flyer.png",
+   "rot": 1.5708
+  },
+  "enemy_boss": {
+   "file": "enemy_boss.png",
+   "rot": 0,
+   "scale": 1.35
+  },
+  "shot_arrow": {
+   "file": "shot_arrow.png"
+  },
+  "shot_shell": {
+   "file": "shot_shell.png"
+  },
+  "shot_ice": {
+   "file": "shot_ice.png"
+  },
+  "base_crystal": {
+   "file": "base_crystal.png",
+   "scale": 1.2
+  },
+  "spawn_portal": {
+   "file": "spawn_portal.png",
+   "scale": 1.1
+  }
+ }
+}

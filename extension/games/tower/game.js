@@ -158,8 +158,9 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
     if (pack?.sprites?.tile_grass) { for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) spr(c, pack, "tile_grass", cx(x), cy(y)); }
     else { const gg = c.createLinearGradient(0, TOP, 0, H); gg.addColorStop(0, pal.g1); gg.addColorStop(1, pal.g2); c.fillStyle = gg; c.fillRect(0, TOP, W, H - TOP); }
     if (pack?.sprites?.tile_road) {
+      const pts2 = path.map(([x, y]) => [cx(x), cy(y)]); c.lineCap = "square"; c.lineJoin = "miter"; c.strokeStyle = "rgba(0,0,0,0.28)"; c.lineWidth = CELL + 4; c.beginPath(); pts2.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.stroke();
       for (let i = 0; i < path.length; i++) { const [x, y] = path[i]; if (x < 0 || y < 0 || x >= COLS || y >= ROWS) continue; const prev = path[i - 1] || path[i], next = path[i + 1] || path[i]; const dx = Math.sign(next[0] - prev[0]), dy = Math.sign(next[1] - prev[1]); const turn = prev[0] !== next[0] && prev[1] !== next[1] && pack.sprites.tile_road_turn; spr(c, pack, turn ? "tile_road_turn" : "tile_road", cx(x), cy(y), { rot: turn ? turnRot(prev, [x, y], next) : (dx ? 0 : Math.PI / 2) }); }
-      for (const d of decor) { const k = ["tree", "rock", "flowers"][d.k]; spr(c, pack, k, cx(d.x), cy(d.y)) || drawDecor(c, d, pal); }
+      for (const d of decor) { const k = ["tree", "rock", "flowers"][d.k] + ((d.x + d.y) % 2 && d.k < 2 ? "2" : ""); spr(c, pack, k, cx(d.x), cy(d.y)) || spr(c, pack, k.replace("2", ""), cx(d.x), cy(d.y)) || drawDecor(c, d, pal); }
       const vg2 = c.createRadialGradient(W / 2, (TOP + H) / 2, H * 0.35, W / 2, (TOP + H) / 2, H * 0.85); vg2.addColorStop(0, "rgba(0,0,0,0)"); vg2.addColorStop(1, "rgba(0,0,0,0.3)"); c.fillStyle = vg2; c.fillRect(0, TOP, W, H - TOP);
       return;
     }
