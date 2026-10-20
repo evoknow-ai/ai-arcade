@@ -72,6 +72,7 @@
           <button data-level="advanced">Advanced</button>
         </div>
         <button id="pause" class="ghost" title="P">Pause</button>
+        <button id="recBtn" class="ghost rec" title="R — record a clip">● Rec</button>
         <button id="keysBtn" class="ghost" title="?">Keys</button>
         <button id="fullscreenBtn" class="ghost" title="F">⛶</button>
       </div>
@@ -118,9 +119,18 @@
     <div><dt><kbd>P</kbd> <kbd>Esc</kbd></dt><dd>Pause / resume</dd></div>
     <div><dt><kbd>F</kbd></dt><dd>Full screen</dd></div>
     <div><dt><kbd>M</kbd></dt><dd>Mute sound</dd></div>
+    <div><dt><kbd>R</kbd></dt><dd>Start / stop recording a clip (MP4)</dd></div>
     <div><dt><kbd>?</kbd></dt><dd>This list</dd></div>
   </dl>
   <form method="dialog"><div class="dialog-actions"><button value="close" class="play">Got it</button></div></form>
+</dialog>
+
+<dialog id="clipDialog">
+  <h2>Your clip</h2>
+  <p id="clipStatus">Preparing…</p>
+  <div class="clip-progress"><i id="clipBar"></i></div>
+  <video id="clipVideo" controls hidden></video>
+  <form method="dialog"><div class="dialog-actions"><button type="button" id="clipSave" class="play" hidden>Download MP4</button><button value="close" class="ghost">Close</button></div></form>
 </dialog>
 
 <dialog id="themeDialog">

@@ -99,3 +99,9 @@ Names are 2–12 chars, filtered for profanity. Score posts are rate limited per
 Games can swap their vector art for real sprites: drop PNGs + `manifest.json` into `extension/sprites/<game>/`
 (see `shell/sprites.js` and each pack's README). Tower Defence ships with tiles from
 [Kenney's Tower Defense (top-down)](https://kenney.nl/assets/tower-defense-top-down) pack, CC0.
+
+## Recording clips
+
+Press **R** (or the ● Rec button) during any game to record the canvas and its audio. Chrome records straight to
+MP4 where it can; otherwise the clip is WebM and converted to H.264 MP4 in-browser with ffmpeg.wasm. The 32 MB
+ffmpeg core isn't in git — run `bash tools/fetch-ffmpeg.sh` once (needs npm). Without it clips save as WebM.

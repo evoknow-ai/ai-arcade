@@ -11,6 +11,6 @@
   "host_permissions": ["https://eatsleepai.us/*"],
   "options_page": "store/store.html",
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   }
 }

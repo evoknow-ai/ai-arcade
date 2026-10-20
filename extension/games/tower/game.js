@@ -35,10 +35,10 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
   const diff = DIFFICULTY[difficulty] || DIFFICULTY.intermediate;
   let T = null, tick = 0;
   const g = { id: "tower", tps: 60, size: { width: W, height: H }, score: 0, level: 1, autopilot, init, update, render, onInput, onPointer, onHover, hud };
-  let coverage = [], coverDirty = true, baseHit = 0;
+  let coverage = [], coverDirty = true, baseHit = 0, prep = false;
   let map, path, pathCells, towers, enemies, shots, bolts, particles, popups, gold, lives, wave, waveT, spawning, spawnQ, spawnT, selected, building, hover, msg, msgTtl, shake, flash, decor, between;
 
-  function init(sh) { g.score = 0; g.level = 1; gold = diff.gold; lives = diff.lives; wave = 0; towers = []; particles = []; popups = []; shots = []; bolts = []; shake = 0; flash = 0; selected = null; building = null; setMap(0, sh); enemies = []; spawnQ = []; spawning = false; between = 0; waveT = 420; say("Build towers, then Space to send the first wave", 200); }
+  function init(sh) { g.score = 0; g.level = 1; gold = diff.gold; lives = diff.lives; wave = 0; towers = []; particles = []; popups = []; shots = []; bolts = []; shake = 0; flash = 0; selected = null; building = null; setMap(0, sh); enemies = []; spawnQ = []; spawning = false; between = 0; waveT = Infinity; prep = true; say("Set up your defences — press Space or the wave button when ready", 100000); }
   function rebuildCoverage() { coverage = path.map(([x, y]) => towers.some(w => Math.hypot(cx(w.x) - cx(x), cy(w.y) - cy(y)) <= stat(w, "range") + 12)); coverDirty = false; }
   function rushFactor(e) { // enemies sprint where no tower covers the road ahead of them
     if (!towers.length) return 2.2;
@@ -81,7 +81,7 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
     if (action === "down" && selected) sell(selected, sh);
     if (action === "hint") say("1–5 pick a tower · click to build · click a tower then ↑ upgrade, ↓ sell · Space next wave", 220);
   }
-  function callWave(sh) { if (spawning || enemies.length) return; const bonus = Math.floor(waveT / 60) * 2; if (bonus > 0) { gold += bonus; pop(W / 2, H / 2, `Early call +${bonus} gold`, T?.marquee); } waveT = 0; startWave(sh); }
+  function callWave(sh) { if (spawning || enemies.length) return; if (prep) { prep = false; msgTtl = 0; waveT = 0; startWave(sh); return; } const bonus = Math.floor(waveT / 60) * 2; if (bonus > 0) { gold += bonus; pop(W / 2, H / 2, `Early call +${bonus} gold`, T?.marquee); } waveT = 0; startWave(sh); }
   function onPointer(px, py, sh, button) {
     if (py < TOP) { const i = Math.floor((px - 6) / 82); if (i >= 0 && i < TOWER_IDS.length && px < 6 + TOWER_IDS.length * 82) { building = building === TOWER_IDS[i] ? null : TOWER_IDS[i]; selected = null; } else if (px > W - 110) callWave(sh); return; }
     const t = tileAt(px, py); if (!t) return;
@@ -108,7 +108,8 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
     if (msgTtl > 0) msgTtl--; if (shake > 0) shake--; if (flash > 0) flash--;
     particles = particles.filter(p => (p.ttl -= 1) > 0); for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vy += 0.05; }
     bolts = bolts.filter(b => (b.ttl -= 1) > 0); popups = popups.filter(p => (p.ttl -= 1) > 0);
-    if (!spawning && !enemies.length) { if (!g._paid && wave > 0) { g._paid = true; const cr = 4 + wave * 2; sh.wallet?.earn(cr); g.score += 100 * wave + lives * 5; pop(W / 2, TOP + 60, `Wave ${wave} held · +${100 * wave + lives * 5} · ${cr} cr`, T?.cyan); sh.audio.levelUp(); waveT = 600; } if (--waveT <= 0) { startWave(sh); } }
+    if (prep) { if (g.autopilot && towers.length >= 3) callWave(sh); }
+    else if (!spawning && !enemies.length) { if (!g._paid && wave > 0) { g._paid = true; const cr = 4 + wave * 2; sh.wallet?.earn(cr); g.score += 100 * wave + lives * 5; pop(W / 2, TOP + 60, `Wave ${wave} held · +${100 * wave + lives * 5} · ${cr} cr`, T?.cyan); sh.audio.levelUp(); waveT = 600; } if (--waveT <= 0) { startWave(sh); } }
     if (spawning) { if (--spawnT <= 0 && spawnQ.length) { spawnEnemy(sh, spawnQ.shift()); spawnT = Math.max(14, 40 - wave * 2); } if (!spawnQ.length) spawning = false; }
     // enemies move along the path (flyers cut straight to the exit)
     if (coverDirty) rebuildCoverage();
@@ -134,7 +135,7 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
     }
     shots = shots.filter(s => !s.dead);
     if (lives <= 0) { if (!g._endAt) { g._endAt = sh.tick + 90; say("The base has fallen", 90); sh.audio.gameOver(); } if (sh.tick >= g._endAt) sh.end(); }
-    if (g.autopilot && tick % 40 === 0) autoBuild(sh);
+    if (g.autopilot && tick % (prep ? 20 : 40) === 0) autoBuild(sh);
   }
   function fire(w, e, sh) {
     const def = TOWERS[w.id], wx = cx(w.x), wy = cy(w.y), dmg = stat(w, "dmg");
@@ -158,7 +159,7 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
     if (candidates[0] && gold >= TOWERS[want].cost + 20) build(want, candidates[0], sh);
     else { const w = towers.filter(t => t.lvl < 3).sort((a, b) => b.kills - a.kills)[0]; if (w && gold >= TOWERS[w.id].cost * 0.8 * w.lvl + 40) upgrade(w, sh); }
   }
-  function hud() { return `${diff.name} · wave ${wave} · ${gold} gold · ${lives} lives · ${towers.length} towers${!spawning && !enemies.length ? ` · next wave in ${Math.ceil(waveT / 60)}s` : ""}`; }
+  function hud() { return `${diff.name} · ${prep ? "setup phase" : "wave " + wave} · ${gold} gold · ${lives} lives · ${towers.length} towers${!spawning && !enemies.length ? ` · next wave in ${Math.ceil(waveT / 60)}s` : ""}`; }
 
   // ---------- render ----------
   // terrain is painted once per map into an offscreen layer (Chrome); falls back to direct drawing
@@ -267,7 +268,7 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
     });
     c.fillStyle = T.marquee; c.font = "700 13px system-ui,sans-serif"; c.textAlign = "right"; c.textBaseline = "middle"; c.fillText(`${gold} ◆`, W - 116, 14); c.fillStyle = T.accent; c.fillText(`${lives} ♥`, W - 116, 30);
     const rushing = enemies.some(e => e.rush > 1); if (rushing && tick % 60 < 40) { c.fillStyle = T.accent; c.font = "800 11px system-ui,sans-serif"; c.textAlign = "center"; c.fillText(towers.length ? "GAP IN THE DEFENCE — ENEMIES RUSHING" : "UNDEFENDED — ENEMIES RUSHING", W / 2, TOP + 12); }
-    const idle = !spawning && !enemies.length; const wg = c.createLinearGradient(W - 110, 6, W - 110, 38); wg.addColorStop(0, idle ? shade(T.marquee, 0.1) : "rgba(255,255,255,0.12)"); wg.addColorStop(1, idle ? shade(T.marquee, -0.3) : "rgba(255,255,255,0.04)"); c.fillStyle = wg; rr(c, W - 110, 6, 102, 32, 8); c.fill(); c.fillStyle = idle ? "#000" : "#fff"; c.textAlign = "center"; c.font = "700 11px system-ui,sans-serif"; c.fillText(idle ? `Wave ${wave + 1} in ${Math.ceil(waveT / 60)}s` : `Wave ${wave}`, W - 59, 16); c.font = "10px system-ui,sans-serif"; c.fillText(idle ? "Space: call now" : `${enemies.length + spawnQ.length} left`, W - 59, 29);
+    const idle = !spawning && !enemies.length; if (prep) { c.fillStyle = T.marquee; rr(c, W - 110, 6, 102, 32, 8); c.fill(); c.fillStyle = "#000"; c.textAlign = "center"; c.font = "700 11px system-ui,sans-serif"; c.fillText("Start wave 1", W - 59, 16); c.font = "10px system-ui,sans-serif"; c.fillText("Space when ready", W - 59, 29); if (tick % 60 < 40) { c.fillStyle = T.marquee; c.font = "800 11px system-ui,sans-serif"; c.fillText("SETUP PHASE — build freely, the clock starts on your call", W / 2, TOP + 12); } } else { const wg = c.createLinearGradient(W - 110, 6, W - 110, 38); wg.addColorStop(0, idle ? shade(T.marquee, 0.1) : "rgba(255,255,255,0.12)"); wg.addColorStop(1, idle ? shade(T.marquee, -0.3) : "rgba(255,255,255,0.04)"); c.fillStyle = wg; rr(c, W - 110, 6, 102, 32, 8); c.fill(); c.fillStyle = idle ? "#000" : "#fff"; c.textAlign = "center"; c.font = "700 11px system-ui,sans-serif"; c.fillText(idle ? `Wave ${wave + 1} in ${Math.ceil(waveT / 60)}s` : `Wave ${wave}`, W - 59, 16); c.font = "10px system-ui,sans-serif"; c.fillText(idle ? "Space: call now" : `${enemies.length + spawnQ.length} left`, W - 59, 29); }
     if (selected) { const d = TOWERS[selected.id], up = selected.lvl < 3 ? Math.round(d.cost * 0.8 * selected.lvl) : null; c.fillStyle = "rgba(8,12,20,0.85)"; rr(c, 8, H - 34, 340, 26, 8); c.fill(); c.fillStyle = "#fff"; c.textAlign = "left"; c.font = "700 11px system-ui,sans-serif"; c.fillText(`${d.name} Lv${selected.lvl} · ${selected.kills} kills · dmg ${Math.round(stat(selected, "dmg"))} · range ${Math.round(stat(selected, "range"))} · ${up ? `↑ upgrade ${up}` : "max"} · ↓ sell ${Math.round(selected.spent * 0.6)}`, 18, H - 21); }
   }
   function drawTurret(c, id, ang, lvl, recoil = 0) {

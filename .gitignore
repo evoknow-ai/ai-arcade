@@ -3,3 +3,5 @@ server/*.db*
 node_modules/
 .DS_Store
 dist/
+# ffmpeg.wasm core (32 MB) — fetched with tools/fetch-ffmpeg.sh
+extension/vendor/ffmpeg-core/ffmpeg-core.wasm

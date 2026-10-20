@@ -4,6 +4,8 @@ import { GameShell } from "../shell/GameShell.js";
 import * as store from "../shell/storage.js";
 import { fetchLeaderboard, submitScore, registerName } from "../shell/leaderboard.js";
 import { THEMES, loadTheme, saveTheme, currentTheme } from "../shell/theme.js";
+import { Recorder, download } from "../shell/recorder.js";
+const recorder = new Recorder(); let lastClip = null;
 
 const $ = (id) => document.getElementById(id);
 let remote = { games: {} };           // server metadata keyed by game id
@@ -140,6 +142,7 @@ async function gameOver(result) {
 }
 
 function backToStore() {
+  if (recorder.active) finishRecording();
   flushPlayTime();
   if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); // leaving the stage fullscreen would otherwise hide the store
   shell?.destroy(); shell = null;
@@ -218,10 +221,35 @@ $("themeBtn").onclick = () => {
   $("themeDialog").showModal();
 };
 
+// gameplay recording
+async function toggleRecording() {
+  if (!shell) return;
+  if (recorder.active) { await finishRecording(); return; }
+  try { recorder.start($("game"), shell.audio.stream()); } catch (e) { console.warn(e); $("hudExtra").textContent = "Recording isn't available in this browser"; return; }
+  $("recBtn").classList.add("on"); $("recBtn").textContent = "■ Stop";
+}
+async function finishRecording() {
+  const res = await recorder.stop(); $("recBtn").classList.remove("on"); $("recBtn").textContent = "● Rec";
+  if (!res) return;
+  const d = $("clipDialog"), status = $("clipStatus"), bar = $("clipBar"), video = $("clipVideo"), save = $("clipSave");
+  video.hidden = true; save.hidden = true; bar.style.width = "0%"; d.showModal();
+  let blob = res.blob, ext = "mp4";
+  if (!res.mime.startsWith("video/mp4")) {
+    status.textContent = "Converting to MP4 with ffmpeg…"; bar.style.width = "5%";
+    const mp4 = await recorder.toMp4(res.blob, (p) => { bar.style.width = `${5 + p * 95}%`; status.textContent = `Converting to MP4… ${Math.round(p * 100)}%`; });
+    if (mp4) blob = mp4; else { ext = "webm"; status.textContent = "MP4 converter not installed (see tools/fetch-ffmpeg.sh) — saving as WebM."; }
+  }
+  bar.style.width = "100%"; if (ext === "mp4") status.textContent = `${Math.round(res.seconds)}s clip ready · ${(blob.size / 1048576).toFixed(1)} MB`;
+  const name = `${current?.id || "arcade"}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.${ext}`;
+  lastClip = { blob, name }; video.src = URL.createObjectURL(blob); video.hidden = false; save.hidden = false; save.textContent = `Download ${ext.toUpperCase()}`;
+  save.onclick = () => download(blob, name);
+}
+$("recBtn").onclick = toggleRecording;
+
 // keyboard shortcuts: on-screen strip, help dialog, fullscreen, mute
 function renderKeystrip(game) {
   const strip = $("keystrip"); strip.innerHTML = "";
-  const items = [...(game.shortcuts || []), ["P", "Pause"], ["F", "Full screen"], ["?", "All keys"]];
+  const items = [...(game.shortcuts || []), ["P", "Pause"], ["R", "Record clip"], ["F", "Full screen"], ["?", "All keys"]];
   for (const [keys, label] of items) {
     const span = document.createElement("span");
     span.innerHTML = keys.split(" ").filter(Boolean).map(k => /^(\/|\+)$/.test(k) ? k : `<kbd>${esc(k)}</kbd>`).join(" ") + ` ${esc(label)}`;
@@ -253,6 +281,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "f" || e.key === "F") { e.preventDefault(); toggleFullscreen(); }
   if (e.key === "?" ) { e.preventDefault(); showKeys(); }
   if (e.key === "m" || e.key === "M") { shell.audio.muted = !shell.audio.muted; $("hudExtra").dataset.muted = shell.audio.muted; }
+  if (e.key === "r" || e.key === "R") { e.preventDefault(); toggleRecording(); }
 });
 document.addEventListener("fullscreenchange", () => $("fullscreenBtn").textContent = document.fullscreenElement ? "⤢" : "⛶");
 

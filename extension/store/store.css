@@ -202,3 +202,8 @@ kbd { display: inline-block; min-width: 1.6em; padding: 2px 7px; border-radius: 
 .stage:fullscreen .hud { max-width: 1100px; border-radius: 14px 14px 0 0; }
 .stage:fullscreen #game { max-width: min(100vw - 32px, 1100px); max-height: calc(100vh - 150px); width: auto; height: auto; object-fit: contain; }
 .stage:fullscreen .keystrip { color: var(--paper-dim); }
+.rec.on { color: #fff; background: var(--accent); border-color: var(--accent); animation: recpulse 1.2s infinite; }
+@keyframes recpulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 35%, transparent); } }
+.clip-progress { height: 6px; border-radius: 3px; background: var(--ink); overflow: hidden; margin: 10px 0; }
+.clip-progress i { display: block; height: 100%; width: 0; background: var(--cyan); transition: width .2s; }
+#clipVideo { width: 100%; border-radius: 10px; margin-top: 8px; background: #000; }

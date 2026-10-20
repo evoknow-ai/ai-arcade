@@ -1,7 +1,8 @@
 // Synthesized SFX via Web Audio — no asset files, no licensing.
 export class Audio {
   constructor() { this.ctx = null; this.muted = false; }
-  ensure() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); if (this.ctx.state === "suspended") this.ctx.resume(); }
+  ensure() { if (!this.ctx) { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.tap = this.ctx.createMediaStreamDestination(); } if (this.ctx.state === "suspended") this.ctx.resume(); }
+  stream() { this.ensure(); return this.tap.stream; } // for the recorder
   tone({ freq = 440, type = "square", dur = 0.08, vol = 0.15, slide = 0 }) {
     if (this.muted) return;
     this.ensure();
@@ -10,7 +11,7 @@ export class Audio {
     osc.type = type; osc.frequency.setValueAtTime(freq, t);
     if (slide) osc.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
     gain.gain.setValueAtTime(vol, t); gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    osc.connect(gain).connect(this.ctx.destination);
+    osc.connect(gain).connect(this.ctx.destination); gain.connect(this.tap);
     osc.start(t); osc.stop(t + dur);
   }
   blip() { this.tone({ freq: 880, dur: 0.05 }); }
