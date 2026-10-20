@@ -35,11 +35,19 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
   const diff = DIFFICULTY[difficulty] || DIFFICULTY.intermediate;
   let T = null, tick = 0;
   const g = { id: "tower", tps: 60, size: { width: W, height: H }, score: 0, level: 1, autopilot, init, update, render, onInput, onPointer, onHover, hud };
+  let coverage = [], coverDirty = true, baseHit = 0;
   let map, path, pathCells, towers, enemies, shots, bolts, particles, popups, gold, lives, wave, waveT, spawning, spawnQ, spawnT, selected, building, hover, msg, msgTtl, shake, flash, decor, between;
 
   function init(sh) { g.score = 0; g.level = 1; gold = diff.gold; lives = diff.lives; wave = 0; towers = []; particles = []; popups = []; shots = []; bolts = []; shake = 0; flash = 0; selected = null; building = null; setMap(0, sh); enemies = []; spawnQ = []; spawning = false; between = 0; waveT = 420; say("Build towers, then Space to send the first wave", 200); }
+  function rebuildCoverage() { coverage = path.map(([x, y]) => towers.some(w => Math.hypot(cx(w.x) - cx(x), cy(w.y) - cy(y)) <= stat(w, "range") + 12)); coverDirty = false; }
+  function rushFactor(e) { // enemies sprint where no tower covers the road ahead of them
+    if (!towers.length) return 2.2;
+    if (e.fly) { return towers.some(w => Math.hypot(cx(w.x) - e.x, cy(w.y) - e.y) <= stat(w, "range") + 40) ? 1 : 1.6; }
+    for (let i = e.seg; i <= Math.min(path.length - 1, e.seg + 3); i++) if (coverage[i]) return 1;
+    return 1.7;
+  }
   function setMap(i, sh) {
-    map = i % MAPS.length; const wp = MAPS[map]; path = [];
+    map = i % MAPS.length; const wp = MAPS[map]; path = []; coverDirty = true;
     for (let k = 0; k < wp.length - 1; k++) { const [x0, y0] = wp[k], [x1, y1] = wp[k + 1]; const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)); for (let s = 0; s < n; s++) path.push([x0 + Math.sign(x1 - x0) * s, y0 + Math.sign(y1 - y0) * s]); }
     path.push(wp[wp.length - 1]); pathCells = new Set(path.map(([x, y]) => y * COLS + x));
     decor = Array.from({ length: 40 }, () => ({ x: sh.rng.int(COLS), y: sh.rng.int(ROWS), k: sh.rng.int(3), p: sh.rng.next() * 6.28 })).filter(d => !pathCells.has(d.y * COLS + d.x));
@@ -87,11 +95,11 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
     const def = TOWERS[id];
     if (pathCells.has(t.y * COLS + t.x)) { say("Can't build on the path", 50); sh.audio.hit(); return false; }
     if (gold < def.cost) { say(`${def.name} costs ${def.cost} gold`, 60); sh.audio.hit(); return false; }
-    gold -= def.cost; towers.push({ id, x: t.x, y: t.y, lvl: 1, cool: 0, ang: 0, target: null, kills: 0, spent: def.cost }); sh.record(1000 + t.y * COLS + t.x + TOWER_IDS.indexOf(id) * 1000);
+    gold -= def.cost; towers.push({ id, x: t.x, y: t.y, lvl: 1, cool: 0, ang: 0, target: null, kills: 0, spent: def.cost }); coverDirty = true; sh.record(1000 + t.y * COLS + t.x + TOWER_IDS.indexOf(id) * 1000);
     sh.audio.tone({ freq: 400, type: "triangle", dur: 0.1, slide: 200, vol: 0.08 }); burst(cx(t.x), cy(t.y), 10, def.color, sh); return true;
   }
-  function upgrade(w, sh) { const cost = Math.round(TOWERS[w.id].cost * 0.8 * w.lvl); if (w.lvl >= 3) { say("Max level", 40); return; } if (gold < cost) { say(`Upgrade costs ${cost}`, 50); sh.audio.hit(); return; } gold -= cost; w.lvl++; w.spent += cost; sh.record(2000 + w.y * COLS + w.x); pop(cx(w.x), cy(w.y) - 20, `Lv ${w.lvl}`, T?.marquee); sh.audio.levelUp(); burst(cx(w.x), cy(w.y), 14, TOWERS[w.id].color, sh); }
-  function sell(w, sh) { gold += Math.round(w.spent * 0.6); towers = towers.filter(t => t !== w); selected = null; sh.record(3000 + w.y * COLS + w.x); pop(cx(w.x), cy(w.y), `+${Math.round(w.spent * 0.6)} gold`, T?.textDim); sh.audio.blip(); }
+  function upgrade(w, sh) { const cost = Math.round(TOWERS[w.id].cost * 0.8 * w.lvl); if (w.lvl >= 3) { say("Max level", 40); return; } if (gold < cost) { say(`Upgrade costs ${cost}`, 50); sh.audio.hit(); return; } gold -= cost; w.lvl++; w.spent += cost; coverDirty = true; sh.record(2000 + w.y * COLS + w.x); pop(cx(w.x), cy(w.y) - 20, `Lv ${w.lvl}`, T?.marquee); sh.audio.levelUp(); burst(cx(w.x), cy(w.y), 14, TOWERS[w.id].color, sh); }
+  function sell(w, sh) { gold += Math.round(w.spent * 0.6); towers = towers.filter(t => t !== w); selected = null; coverDirty = true; sh.record(3000 + w.y * COLS + w.x); pop(cx(w.x), cy(w.y), `+${Math.round(w.spent * 0.6)} gold`, T?.textDim); sh.audio.blip(); }
   const stat = (w, k) => { const d = TOWERS[w.id]; const m = 1 + (w.lvl - 1) * 0.45; return k === "range" ? d.range * (1 + (w.lvl - 1) * 0.15) : k === "dmg" ? d.dmg * m : k === "rate" ? d.rate / (1 + (w.lvl - 1) * 0.25) : d[k]; };
 
   // ---------- simulation ----------
@@ -103,8 +111,10 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
     if (!spawning && !enemies.length) { if (!g._paid && wave > 0) { g._paid = true; const cr = 4 + wave * 2; sh.wallet?.earn(cr); g.score += 100 * wave + lives * 5; pop(W / 2, TOP + 60, `Wave ${wave} held · +${100 * wave + lives * 5} · ${cr} cr`, T?.cyan); sh.audio.levelUp(); waveT = 600; } if (--waveT <= 0) { startWave(sh); } }
     if (spawning) { if (--spawnT <= 0 && spawnQ.length) { spawnEnemy(sh, spawnQ.shift()); spawnT = Math.max(14, 40 - wave * 2); } if (!spawnQ.length) spawning = false; }
     // enemies move along the path (flyers cut straight to the exit)
+    if (coverDirty) rebuildCoverage();
+    if (baseHit > 0) baseHit--;
     for (const e of enemies) {
-      const def = ENEMIES[e.kind]; const sp = def.speed * (e.slow > 0 ? 0.55 : 1) * (1 + wave * 0.02); if (e.slow > 0) e.slow--; if (e.hit > 0) e.hit--;
+      const def = ENEMIES[e.kind]; e.rush = rushFactor(e); const sp = def.speed * (e.slow > 0 ? 0.55 : 1) * (1 + wave * 0.02) * e.rush; if (e.slow > 0) e.slow--; if (e.hit > 0) e.hit--;
       if (e.fly) { const [ex, ey] = path[path.length - 1]; const tx = cx(ex), ty = cy(ey); const d = Math.hypot(tx - e.x, ty - e.y); if (d < sp) { leak(e, sh); continue; } e.x += (tx - e.x) / d * sp; e.y += (ty - e.y) / d * sp; }
       else { let left = sp; while (left > 0) { const nxt = path[e.seg + 1]; if (!nxt) { leak(e, sh); break; } const tx = cx(nxt[0]), ty = cy(nxt[1]); const d = Math.hypot(tx - e.x, ty - e.y); if (d <= left) { e.x = tx; e.y = ty; e.seg++; left -= d; } else { e.x += (tx - e.x) / d * left; e.y += (ty - e.y) / d * left; left = 0; } } }
     }
@@ -138,7 +148,7 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
     const def = ENEMIES[e.kind]; const real = Math.max(1, dmg - (def.armor || 0)); e.hp -= real; e.hit = 6; if (s.slow) e.slow = 90;
     if (e.hp <= 0 && !e.dead) { e.dead = true; const rw = def.reward; gold += rw; g.score += rw * 10; if (s.tower) s.tower.kills++; burst(e.x, e.y, 10, def.color, sh); pop(e.x, e.y - 12, `+${rw}`, T?.marquee); sh.audio.tone({ freq: 200 + def.r * 10, type: "square", dur: 0.06, vol: 0.05 }); }
   }
-  function leak(e, sh) { e.dead = true; lives -= e.kind === "boss" ? 5 : 1; shake = 10; flash = 6; sh.audio.hit(); pop(e.x, e.y - 10, e.kind === "boss" ? "-5 lives" : "-1 life", T?.accent); }
+  function leak(e, sh) { e.dead = true; lives -= e.kind === "boss" ? 5 : 1; shake = 10; flash = 6; baseHit = 30; sh.audio.hit(); pop(e.x, e.y - 10, e.kind === "boss" ? "-5 lives" : "-1 life", T?.accent); }
   function burst(x, y, n, color, sh) { for (let i = 0; i < n; i++) { const a = sh.rng.next() * 6.28, sp = 0.5 + sh.rng.next() * 2.5; particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.5, ttl: 18 + sh.rng.int(22), color }); } }
   function autoBuild(sh) {
     if (!spawning && !enemies.length && waveT > 120 && towers.length >= 3) callWave(sh);
@@ -202,8 +212,9 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
     for (let i = 1; i < path.length - 1; i += 2) { const [x, y] = path[i], [nx, ny] = path[i + 1]; const px = cx(x), py = cy(y), dx = Math.sign(nx - x), dy = Math.sign(ny - y), k = ((tick / 4 + i * 3) % 36) / 36; const ox = px + dx * (k * CELL - CELL / 2), oy = py + dy * (k * CELL - CELL / 2); c.globalAlpha = 0.6 * Math.sin(k * Math.PI); c.beginPath(); c.moveTo(ox - dy * 6 - dx * 5, oy - dx * 6 - dy * 5); c.lineTo(ox, oy); c.lineTo(ox + dy * 6 - dx * 5, oy + dx * 6 - dy * 5); c.stroke(); } c.globalAlpha = 1;
     // base (crystal) and spawn (portal)
     const [ex, ey] = path[path.length - 1], [sx, sy] = path[0];
-    const bx = Math.max(10, Math.min(W - 10, cx(ex))), by = Math.max(TOP + 10, Math.min(H - 10, cy(ey)));
-    if (spr(c, pack, "base_crystal", bx, by)) { /* sprite base */ } else {
+    const bx = Math.max(28, Math.min(W - 28, cx(ex))), by = Math.max(TOP + 32, Math.min(H - 44, cy(ey)));
+    drawBase(c, bx, by);
+    if (false) {
     c.fillStyle = "rgba(0,0,0,0.3)"; c.beginPath(); c.ellipse(bx, by + 12, 16, 6, 0, 0, 7); c.fill();
     c.shadowColor = T.cyan; c.shadowBlur = 24 + 8 * Math.sin(tick / 8); const cg = c.createLinearGradient(bx - 10, by - 20, bx + 10, by + 10); cg.addColorStop(0, "#fff"); cg.addColorStop(0.4, T.cyan); cg.addColorStop(1, shade(T.cyan, -0.5)); c.fillStyle = cg; c.beginPath(); c.moveTo(bx, by - 22); c.lineTo(bx + 11, by - 4); c.lineTo(bx, by + 12); c.lineTo(bx - 11, by - 4); c.closePath(); c.fill(); c.shadowBlur = 0; }
     const px0 = Math.max(10, Math.min(W - 10, cx(sx))), py0 = Math.max(TOP + 10, Math.min(H - 10, cy(sy)));
@@ -226,7 +237,23 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
     for (const p of popups) { const k = 1 - p.ttl / 55; c.globalAlpha = Math.min(1, p.ttl / 12); c.fillStyle = p.color || "#fff"; c.font = "800 12px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.shadowColor = "#000"; c.shadowBlur = 5; c.fillText(p.text, p.x, p.y - k * 18); c.shadowBlur = 0; } c.globalAlpha = 1;
     if (flash > 0) { c.fillStyle = `rgba(255,60,90,${flash / 30})`; c.fillRect(-10, -10, W + 20, H + 20); }
     drawHud(c);
-    if (msgTtl > 0 && msg) { c.font = `800 ${msg.length > 40 ? 13 : 22}px 'Chakra Petch',system-ui,sans-serif`; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = T.marquee; c.shadowColor = "#000"; c.shadowBlur = 10; c.globalAlpha = Math.min(1, msgTtl / 20); c.fillText(msg, W / 2, TOP + 30); c.shadowBlur = 0; c.globalAlpha = 1; }
+    if (msgTtl > 0 && msg) { c.font = `800 ${msg.length > 40 ? 13 : 22}px 'Chakra Petch',system-ui,sans-serif`; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = T.marquee; c.shadowColor = "#000"; c.shadowBlur = 10; c.globalAlpha = Math.min(1, msgTtl / 20); c.fillText(msg, W / 2, TOP + 38); c.shadowBlur = 0; c.globalAlpha = 1; }
+    c.restore();
+  }
+  function drawBase(c, bx, by) {
+    const hp = Math.max(0, lives) / diff.lives, hit = baseHit / 30;
+    c.save(); if (hit > 0) c.translate((Math.random() - 0.5) * hit * 4, (Math.random() - 0.5) * hit * 4);
+    // shield dome whose strength is the base health
+    c.globalAlpha = 0.12 + 0.25 * hp; c.fillStyle = hp > 0.5 ? T.cyan : hp > 0.25 ? T.marquee : T.accent; c.beginPath(); c.arc(bx, by, 30, 0, 7); c.fill();
+    c.globalAlpha = 0.9; c.strokeStyle = c.fillStyle; c.lineWidth = 3; c.beginPath(); c.arc(bx, by, 30, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * hp); c.stroke(); c.globalAlpha = 1;
+    if (!spr(c, pack, "base_crystal", bx, by)) { c.fillStyle = "rgba(0,0,0,0.3)"; c.beginPath(); c.ellipse(bx, by + 12, 16, 6, 0, 0, 7); c.fill(); c.shadowColor = T.cyan; c.shadowBlur = 24; const cg = c.createLinearGradient(bx - 10, by - 20, bx + 10, by + 10); cg.addColorStop(0, "#fff"); cg.addColorStop(0.4, T.cyan); cg.addColorStop(1, shade(T.cyan, -0.5)); c.fillStyle = cg; c.beginPath(); c.moveTo(bx, by - 22); c.lineTo(bx + 11, by - 4); c.lineTo(bx, by + 12); c.lineTo(bx - 11, by - 4); c.closePath(); c.fill(); c.shadowBlur = 0; }
+    // damage: cracks and smoke as health drops
+    if (hp < 0.6) { c.strokeStyle = "rgba(0,0,0,0.6)"; c.lineWidth = 1.5; c.beginPath(); c.moveTo(bx - 10, by - 6); c.lineTo(bx - 4, by + 2); c.lineTo(bx - 8, by + 10); if (hp < 0.35) { c.moveTo(bx + 8, by - 10); c.lineTo(bx + 3, by - 2); c.lineTo(bx + 9, by + 6); } c.stroke(); }
+    if (hp < 0.5) { for (let i = 0; i < 3; i++) { const t = (tick / 2 + i * 20) % 60; c.globalAlpha = (1 - t / 60) * 0.5; c.fillStyle = hp < 0.25 ? "#FF7A3D" : "#999"; c.beginPath(); c.arc(bx + Math.sin(t / 8 + i) * 4, by - 10 - t * 0.6, 3 + t / 12, 0, 7); c.fill(); } c.globalAlpha = 1; }
+    if (hit > 0) { c.fillStyle = `rgba(255,60,90,${hit * 0.5})`; c.beginPath(); c.arc(bx, by, 34, 0, 7); c.fill(); }
+    // health bar + number
+    c.fillStyle = "rgba(0,0,0,0.6)"; rr(c, bx - 22, by + 24, 44, 6, 3); c.fill(); c.fillStyle = hp > 0.5 ? "#4CD964" : hp > 0.25 ? T.marquee : T.accent; rr(c, bx - 22, by + 24, 44 * hp, 6, 3); c.fill();
+    c.fillStyle = "#fff"; c.font = "800 10px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.shadowColor = "#000"; c.shadowBlur = 4; c.fillText(`${Math.max(0, lives)}/${diff.lives}`, bx, by + 38); c.shadowBlur = 0;
     c.restore();
   }
   function drawHud(c) {
@@ -239,6 +266,7 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
       c.fillStyle = on ? "#000" : can ? "#fff" : "rgba(255,255,255,0.4)"; c.font = "700 11px system-ui,sans-serif"; c.textAlign = "left"; c.textBaseline = "middle"; c.fillText(d.name, x + 30, 16); c.font = "10px system-ui,sans-serif"; c.fillStyle = on ? "#000" : can ? T.marquee : "rgba(255,255,255,0.4)"; c.fillText(`${d.cost}`, x + 30, 29); c.fillStyle = on ? "#00000088" : "rgba(255,255,255,0.35)"; c.font = "700 9px system-ui,sans-serif"; c.textAlign = "right"; c.fillText(String(i + 1), x + 73, 29); c.textAlign = "left";
     });
     c.fillStyle = T.marquee; c.font = "700 13px system-ui,sans-serif"; c.textAlign = "right"; c.textBaseline = "middle"; c.fillText(`${gold} ◆`, W - 116, 14); c.fillStyle = T.accent; c.fillText(`${lives} ♥`, W - 116, 30);
+    const rushing = enemies.some(e => e.rush > 1); if (rushing && tick % 60 < 40) { c.fillStyle = T.accent; c.font = "800 11px system-ui,sans-serif"; c.textAlign = "center"; c.fillText(towers.length ? "GAP IN THE DEFENCE — ENEMIES RUSHING" : "UNDEFENDED — ENEMIES RUSHING", W / 2, TOP + 12); }
     const idle = !spawning && !enemies.length; const wg = c.createLinearGradient(W - 110, 6, W - 110, 38); wg.addColorStop(0, idle ? shade(T.marquee, 0.1) : "rgba(255,255,255,0.12)"); wg.addColorStop(1, idle ? shade(T.marquee, -0.3) : "rgba(255,255,255,0.04)"); c.fillStyle = wg; rr(c, W - 110, 6, 102, 32, 8); c.fill(); c.fillStyle = idle ? "#000" : "#fff"; c.textAlign = "center"; c.font = "700 11px system-ui,sans-serif"; c.fillText(idle ? `Wave ${wave + 1} in ${Math.ceil(waveT / 60)}s` : `Wave ${wave}`, W - 59, 16); c.font = "10px system-ui,sans-serif"; c.fillText(idle ? "Space: call now" : `${enemies.length + spawnQ.length} left`, W - 59, 29);
     if (selected) { const d = TOWERS[selected.id], up = selected.lvl < 3 ? Math.round(d.cost * 0.8 * selected.lvl) : null; c.fillStyle = "rgba(8,12,20,0.85)"; rr(c, 8, H - 34, 340, 26, 8); c.fill(); c.fillStyle = "#fff"; c.textAlign = "left"; c.font = "700 11px system-ui,sans-serif"; c.fillText(`${d.name} Lv${selected.lvl} · ${selected.kills} kills · dmg ${Math.round(stat(selected, "dmg"))} · range ${Math.round(stat(selected, "range"))} · ${up ? `↑ upgrade ${up}` : "max"} · ↓ sell ${Math.round(selected.spent * 0.6)}`, 18, H - 21); }
   }
@@ -267,6 +295,11 @@ export default function createTower({ autopilot = false, difficulty = "intermedi
   }
   function drawEnemy(c, e) {
     const def = ENEMIES[e.kind], r = def.r, bob = e.fly ? Math.sin(tick / 6 + e.wob) * 3 : 0, y = e.y + bob - (e.fly ? 14 : 0);
+    if (e.rush > 1) { // speed streaks + dust behind a sprinting enemy
+      const nxt = e.fly ? path[path.length - 1] : path[Math.min(path.length - 1, e.seg + 1)]; const a = Math.atan2(cy(nxt[1]) - e.y, cx(nxt[0]) - e.x);
+      c.strokeStyle = "rgba(255,255,255,0.55)"; c.lineWidth = 1.5; for (let i = 0; i < 3; i++) { const o = (i - 1) * 5, bx = e.x - Math.cos(a) * (r + 4) - Math.sin(a) * o, by = y - Math.sin(a) * (r + 4) + Math.cos(a) * o; c.beginPath(); c.moveTo(bx, by); c.lineTo(bx - Math.cos(a) * (8 + (tick + i * 3) % 6), by - Math.sin(a) * (8 + (tick + i * 3) % 6)); c.stroke(); }
+      if (!e.fly) { c.fillStyle = "rgba(120,90,50,0.35)"; for (let i = 0; i < 2; i++) { c.beginPath(); c.arc(e.x - Math.cos(a) * (r + 6 + i * 6), e.y + 4 + Math.sin(tick / 3 + i), 3 + i, 0, 7); c.fill(); } }
+    }
     if (pack?.sprites?.["enemy_" + e.kind]) {
       const nxt = e.fly ? path[path.length - 1] : path[Math.min(path.length - 1, e.seg + 1)]; const rot = Math.atan2(cy(nxt[1]) - e.y, cx(nxt[0]) - e.x);
       if (e.fly) { c.fillStyle = "rgba(0,0,0,0.3)"; c.beginPath(); c.ellipse(e.x + 2, e.y + r * 0.6, r, r * 0.45, 0, 0, 7); c.fill(); }
