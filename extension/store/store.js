@@ -208,6 +208,15 @@ document.querySelectorAll(".difficulty button").forEach(b => b.onclick = async (
 });
 syncDifficultyUI();
 
+// credits
+$("creditsBtn").onclick = () => {
+  const man = (typeof chrome !== "undefined" && chrome.runtime?.getManifest?.()) || {};
+  $("creditsVersion").textContent = man.version ? `v${man.version}` : "";
+  const dl = $("inspiredList"); dl.innerHTML = "";
+  for (const g of CATALOG) { if (!g.inspired) continue; const dt = document.createElement("dt"), dd = document.createElement("dd"); dt.textContent = g.title; dd.textContent = g.inspired; dl.append(dt, dd); }
+  $("creditsDialog").showModal();
+};
+
 // theme picker
 $("themeBtn").onclick = () => {
   const list = $("themeList"); list.innerHTML = "";

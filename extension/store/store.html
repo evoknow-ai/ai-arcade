@@ -15,6 +15,7 @@
   <nav class="top-right">
     <span class="status" id="netStatus" title="Leaderboard server">offline</span>
     <span class="credits" id="credits" title="Credits — earned in any game, spent in any game's shop">0 cr</span>
+    <button class="name" id="creditsBtn" title="Who made this and what it's built on">Credits</button>
     <button class="name" id="themeBtn" title="Choose a color theme">Theme</button>
     <button class="name" id="nameBtn" title="Change your player name">Set your name</button>
   </nav>
@@ -131,6 +132,37 @@
   <div class="clip-progress"><i id="clipBar"></i></div>
   <video id="clipVideo" controls hidden></video>
   <form method="dialog"><div class="dialog-actions"><button type="button" id="clipSave" class="play" hidden>Download MP4</button><button value="close" class="ghost">Close</button></div></form>
+</dialog>
+
+<dialog id="creditsDialog" class="credits">
+  <h2>AI<span>ARCADE</span></h2>
+  <p class="credits-lead">A store of classic arcade games, rebuilt for the browser with AI opponents and helpers. Made by <b>EVOKNOW</b> · <span id="creditsVersion"></span></p>
+  <section>
+    <h3>Built with</h3>
+    <ul>
+      <li>Designed and coded with <b>Claude</b> (Anthropic) working alongside EVOKNOW — every game, engine and AI in this arcade was written in that collaboration.</li>
+      <li>HTML5 Canvas and Web Audio — all sound is synthesized live, no samples.</li>
+      <li><b>ffmpeg.wasm</b> for in-browser MP4 clip export (FFmpeg: LGPL/GPL; libx264: GPL).</li>
+      <li>Typefaces <b>Chakra Petch</b> and <b>Space Grotesk</b> via Google Fonts (SIL Open Font License).</li>
+    </ul>
+  </section>
+  <section>
+    <h3>Art</h3>
+    <ul>
+      <li>Tower Defence and Scorched Ridge sprites from <b>Kenney</b> — <i>Tower Defense (top-down)</i>, released under CC0. kenney.nl</li>
+      <li>All other artwork, covers and icons are drawn procedurally by the games themselves.</li>
+    </ul>
+  </section>
+  <section>
+    <h3>Inspired by</h3>
+    <p class="credits-note">These are original implementations written from scratch; the classics that inspired them, with thanks:</p>
+    <dl class="inspired" id="inspiredList"></dl>
+  </section>
+  <section>
+    <h3>Thanks</h3>
+    <p>To everyone who plays, reports a bug, or beats a high score. Scores, favorites and play stats stay in your browser; nothing is sent anywhere.</p>
+  </section>
+  <form method="dialog"><div class="dialog-actions"><button value="close" class="play">Close</button></div></form>
 </dialog>
 
 <dialog id="themeDialog">

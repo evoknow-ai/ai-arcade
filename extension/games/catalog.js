@@ -3,6 +3,7 @@
 export const CATALOG = [
   {
     id: "pipedream",
+    inspired: "the 1989 pipe-laying puzzle genre (Pipe Mania)",
     title: "PipeDream",
     genre: "Puzzle",
     tagline: "Lay pipe ahead of the flow. Water, oil and gas each break the rules differently.",
@@ -14,6 +15,7 @@ export const CATALOG = [
   },
   {
     id: "snake",
+    inspired: "the 1976 arcade classic Blockade and its Nokia-era descendants",
     title: "Snake",
     genre: "Classic",
     tagline: "Eat, grow, don't bite yourself. Golden fruit is worth five.",
@@ -25,6 +27,7 @@ export const CATALOG = [
   },
   {
     id: "scorched",
+    inspired: "Scorched Earth (1991) and Worms",
     title: "Scorched Ridge",
     genre: "Shooter",
     tagline: "Artillery on a ridge that crumbles. Earn credits, buy missiles, drones and shields.",
@@ -36,6 +39,7 @@ export const CATALOG = [
   },
   {
     id: "minefield",
+    inspired: "Microsoft Minesweeper (1990)",
     title: "Mine Field",
     genre: "Puzzle",
     tagline: "Clear the field without stepping on one. Flags, chords, and a solver hint.",
@@ -47,6 +51,7 @@ export const CATALOG = [
   },
   {
     id: "missile",
+    inspired: "Atari's Missile Command (1980)",
     title: "Missile Defence",
     genre: "Shooter",
     tagline: "Six cities under a sky that turns from dawn to night. MIRVs burst, smart warheads dodge, bombers drop.",
@@ -58,6 +63,7 @@ export const CATALOG = [
   },
   {
     id: "solitaire",
+    inspired: "Klondike, as popularised by Windows Solitaire (1990)",
     title: "Solitaire",
     genre: "Cards",
     tagline: "Klondike. Drag or click to move, draw one or three, and race the clock.",
@@ -69,6 +75,7 @@ export const CATALOG = [
   },
   {
     id: "breakout", title: "Brick Break", genre: "Arcade",
+    inspired: "Atari's Breakout (1976) and Arkanoid (1986)",
     tagline: "Glass, armour, star, explosive, steel and sliding bricks. Lasers, fireball, multiball and more.",
     controls: "Move with the mouse/touch or ←/→. Space or click launches the ball and fires lasers. Star bricks drop power-ups (a few are traps), explosive bricks take out neighbours, steel bricks need fire or a blast.",
     ai: "Attract-mode autopilot that chases good drops and dodges bad ones.",
@@ -77,6 +84,7 @@ export const CATALOG = [
   },
   {
     id: "stacker", title: "Stacker", genre: "Puzzle",
+    inspired: "Tetris (1984) by Alexey Pajitnov",
     tagline: "Falling blocks, rising pressure. Clear four at once for a STACKER.",
     controls: "←/→ move, ↑ rotate, ↓ soft drop, Space hard drop. H shows where the AI would put it.",
     ai: "A placement evaluator (holes, height, bumpiness, lines) that powers the hint and the attract mode.",
@@ -85,6 +93,7 @@ export const CATALOG = [
   },
   {
     id: "belt", title: "Asteroid Belt", genre: "Shooter",
+    inspired: "vertical scrolling shooters of the 80s",
     tagline: "Fly up through a thickening belt. Blast rocks, mine ore, don't scrape the hull.",
     controls: "Arrows/WASD steer in every direction, Space fires. Ore crystals pay credits; S and R pickups give a shield and rapid fire.",
     ai: "Attract-mode pilot that dodges, mines and shoots.",
@@ -93,6 +102,7 @@ export const CATALOG = [
   },
   {
     id: "chopper", title: "Chopper Command", genre: "Shooter",
+    inspired: "Activision's Chopper Command (1982)",
     tagline: "Guard the convoy. Jets and gunships cross a desert wider than the screen; the radar sees it all.",
     controls: "Arrows/WASD fly (the chopper faces your last move), Space fires. Shoot bombs out of the air to save trucks.",
     ai: "Enemies that lead their shots and single out the nearest truck; an autopilot that hunts for attract mode.",
@@ -101,6 +111,7 @@ export const CATALOG = [
   },
   {
     id: "tower", title: "Tower Defence", genre: "Puzzle",
+    inspired: "the tower-defence genre, Desktop Tower Defense (2007) and Kingdom Rush",
     tagline: "Five towers, five enemies, three maps. Build beside the path and hold the base for as many waves as you can.",
     controls: "1–5 picks a tower, click a free tile to build. Click a tower to select it: ↑ upgrades, ↓ sells. Space calls the next wave early for bonus gold. Right-click or Esc cancels.",
     ai: "Arrow, cannon (splash), frost (slow), tesla (chain lightning) and sniper towers; runners, grunts, armoured tanks, flyers that skip the path, and a boss every five waves.",
@@ -109,6 +120,7 @@ export const CATALOG = [
   },
   {
     id: "chess", title: "Chess", genre: "Board",
+    inspired: "the royal game, with an engine in the spirit of early chess programs",
     tagline: "You're White. Full rules, an alpha-beta engine, three strengths, and a hint when you're stuck.",
     controls: "Click a piece then a highlighted square, or drag it. Pawns promote to queens. H asks the engine for a move. The side panel logs every move in algebraic notation; Replay plays the game back at 1×–5×, and PGN copies it.",
     ai: "Alpha-beta minimax with piece-square tables; depth 1–3 by difficulty, with deliberate inaccuracy on Beginner.",
@@ -117,6 +129,7 @@ export const CATALOG = [
   },
   {
     id: "rails", title: "Rail Switch", genre: "Puzzle",
+    inspired: "Train Conductor by The Voxel Agents",
     tagline: "Every train shows the line it must leave on. Draw the crossovers, hold trains with a tap, survive the graveyard shift.",
     controls: "Drag between any two lines to lay a crossover (longer for bigger jumps); the glow at the edge shows where the next train enters. Tap a train to hold it, tap again to release. Click a crossover's × to remove it. Deliver on the numbered line for points; at night ghost trains pay double, the skull train triple but can't be stopped. H sketches a collision fix.",
     ai: "A look-ahead simulator warns of collisions and designs the crossover (or the hold) that prevents them.",
@@ -125,6 +138,7 @@ export const CATALOG = [
   },
   {
     id: "invaders", title: "Invaders", genre: "Shooter",
+    inspired: "Taito's Space Invaders (1978)",
     tagline: "Fifty-five aliens, four crumbling bunkers, one cannon. They get faster as they fall.",
     controls: "←/→ move, Space fires (one shot in the air at a time). Shoot bombs, chip through your own bunkers, bag the saucer.",
     ai: "Attract-mode gunner that dodges bombs and leads the formation.",
@@ -133,6 +147,7 @@ export const CATALOG = [
   },
   {
     id: "lander", title: "Lunar Lander", genre: "Arcade",
+    inspired: "Atari's Lunar Lander (1979)",
     tagline: "Set it down upright and slow on a pad. Higher multipliers sit on smaller, rougher ground.",
     controls: "←/→ rotate, ↑ or Space thrust. Fuel carries over; each landing tops it up a little.",
     ai: "An autopilot that trims drift and manages descent rate — watch it in attract mode.",
@@ -141,6 +156,7 @@ export const CATALOG = [
   },
   {
     id: "rocks", title: "Rock Field", genre: "Shooter",
+    inspired: "Atari's Asteroids (1979)",
     tagline: "Spin, thrust, shoot. Rocks split, the saucer shoots back, hyperspace is a gamble.",
     controls: "←/→ rotate, ↑ thrust, Space fire, ↓ hyperspace.",
     ai: "Saucers that lead their shots; an autopilot gunner for attract mode.",
@@ -149,6 +165,7 @@ export const CATALOG = [
   },
   {
     id: "maze", title: "Maze Chase", genre: "Arcade",
+    inspired: "Namco's Pac-Man (1980)",
     tagline: "Four AI chasers, one maze, every dot. Power pellets turn the tables.",
     controls: "Arrows / WASD or swipe. Your next turn is queued, so press early.",
     ai: "Four chaser personalities: pursuer, ambusher, flanker, wanderer — plus a BFS autopilot.",

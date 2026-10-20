@@ -207,3 +207,19 @@ kbd { display: inline-block; min-width: 1.6em; padding: 2px 7px; border-radius: 
 .clip-progress { height: 6px; border-radius: 3px; background: var(--ink); overflow: hidden; margin: 10px 0; }
 .clip-progress i { display: block; height: 100%; width: 0; background: var(--cyan); transition: width .2s; }
 #clipVideo { width: 100%; border-radius: 10px; margin-top: 8px; background: #000; }
+
+/* ---- credits ---- */
+dialog.credits { width: min(92vw, 640px); max-height: 86vh; overflow: auto; }
+dialog.credits h2 { font-size: 36px; letter-spacing: .04em; }
+dialog.credits h2 span { color: var(--marquee); margin-left: 6px; text-shadow: 0 0 18px color-mix(in srgb, var(--marquee) 70%, transparent); }
+.credits-lead { color: var(--paper-dim); margin: 0 0 18px; }
+.credits-lead b { color: var(--paper); }
+dialog.credits section { margin: 0 0 16px; padding-top: 14px; border-top: 1px solid var(--glass-border); }
+dialog.credits h3 { font-family: var(--display); font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); margin: 0 0 8px; }
+dialog.credits ul { margin: 0; padding-left: 18px; color: var(--paper-dim); }
+dialog.credits li { margin: 4px 0; }
+dialog.credits li b, dialog.credits p b { color: var(--paper); }
+.credits-note { margin: 0 0 8px; color: var(--paper-dim); font-size: 13px; }
+.inspired { display: grid; grid-template-columns: 140px 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
+.inspired dt { font-weight: 600; color: var(--paper); }
+.inspired dd { margin: 0; color: var(--paper-dim); }
