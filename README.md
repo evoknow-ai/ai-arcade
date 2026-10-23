@@ -105,3 +105,11 @@ Games can swap their vector art for real sprites: drop PNGs + `manifest.json` in
 Press **R** (or the ● Rec button) during any game to record the canvas and its audio. Chrome records straight to
 MP4 where it can; otherwise the clip is WebM and converted to H.264 MP4 in-browser with ffmpeg.wasm. The 32 MB
 ffmpeg core isn't in git — run `bash tools/fetch-ffmpeg.sh` once (needs npm). Without it clips save as WebM.
+
+## $ARCADE tokens
+
+`extension/economy.json` holds the rules (later served by the backend): a one-time welcome grant, 1 token per
+*active* minute of play (input within the last 10 s; idle time doesn't count), ×1.5 in full screen, and a daily
+bonus for 5 active minutes in a day. Tokens convert into each game's own credits at a per-game rate — simpler
+games convert better, complex ones less. The wallet dialog (header pill or the in-game Wallet button) shows the
+balance, today's progress, conversion per game and recent history.

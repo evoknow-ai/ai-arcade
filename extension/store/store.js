@@ -5,6 +5,7 @@ import * as store from "../shell/storage.js";
 import { fetchLeaderboard, submitScore, registerName } from "../shell/leaderboard.js";
 import { THEMES, loadTheme, saveTheme, currentTheme } from "../shell/theme.js";
 import { Recorder, download } from "../shell/recorder.js";
+import * as eco from "../shell/economy.js";
 const recorder = new Recorder(); let lastClip = null;
 
 const $ = (id) => document.getElementById(id);
@@ -23,13 +24,38 @@ function fmtAgo(ts) { const d = Date.now() - ts; const m = Math.floor(d / 60000)
 function flushPlayTime() { if (playStart && current) { store.addPlayTime(current.id, Date.now() - playStart); playStart = null; } }
 await loadTheme();
 let difficulty = (await store.getSync("difficulty")).difficulty || "intermediate";
-// shared credits wallet: games earn with good play and spend in their shops
-const wallet = {
-  balance: await store.getCredits(),
-  earn(n) { this.balance += Math.round(n); store.setCredits(this.balance); renderCredits(); },
-  spend(n) { if (this.balance < n) return false; this.balance -= n; store.setCredits(this.balance); renderCredits(); return true; },
-};
-function renderCredits() { $("credits").textContent = wallet.balance.toLocaleString() + " cr"; }
+// $ARCADE tokens (earned by active play, converted into per-game credits at each game's rate)
+await eco.load();
+let arcadeBalance = await eco.balance();
+if (await eco.grantIfNew()) { arcadeBalance = await eco.balance(); setTimeout(() => toast(`Welcome! ${eco.config().installGrant.toLocaleString()} ${eco.config().currency} to get you started`), 600); }
+function renderCredits() { $("credits").textContent = `${eco.config().currency} ${arcadeBalance.toLocaleString()}`; }
+// a per-game wallet: games earn and spend their own credits; top-ups come from converting $ARCADE
+let wallet = null;
+async function makeWallet(gameId) {
+  const w = { gameId, balance: await eco.gameCredits(gameId),
+    earn(n) { this.balance += Math.round(n); eco.setGameCredits(gameId, this.balance); },
+    spend(n) { if (this.balance < n) return false; this.balance -= n; eco.setGameCredits(gameId, this.balance); return true; } };
+  return w;
+}
+function toast(text) { const t = document.createElement("div"); t.className = "toast"; t.textContent = text; document.body.appendChild(t); requestAnimationFrame(() => t.classList.add("in")); setTimeout(() => { t.classList.remove("in"); setTimeout(() => t.remove(), 400); }, 3200); }
+
+// ---- active-play accrual: 1 token per active minute, ×fullscreen, plus a daily bonus ----
+let lastActivity = 0, activeSeconds = 0, runEarned = 0, dailyRec = await eco.daily();
+["keydown", "pointerdown", "pointermove", "wheel", "touchstart"].forEach(ev => window.addEventListener(ev, () => { lastActivity = Date.now(); }, { passive: true }));
+setInterval(async () => {
+  if (!shell || shell.paused || shell.ended || !current) return;
+  const cfg = eco.config();
+  if (Date.now() - lastActivity > cfg.idleAfterSeconds * 1000) return; // idle: no tokens
+  activeSeconds++; dailyRec = (dailyRec.date === new Date().toISOString().slice(0, 10)) ? dailyRec : await eco.daily(); dailyRec.seconds++;
+  if (activeSeconds >= 60) {
+    activeSeconds = 0;
+    const mult = document.fullscreenElement ? cfg.fullscreenMultiplier : 1, gain = cfg.perActiveMinute * mult;
+    arcadeBalance = await eco.adjust(gain, "play", { game: current.id, fullscreen: !!document.fullscreenElement }); runEarned += gain; renderCredits();
+    $("hudEarn").textContent = `+${gain} ${cfg.currency}${mult > 1 ? " (fullscreen)" : ""}`; $("hudEarn").classList.add("show"); setTimeout(() => $("hudEarn").classList.remove("show"), 2500);
+  }
+  if (!dailyRec.bonus && dailyRec.seconds >= cfg.daily.minutes * 60) { dailyRec.bonus = true; arcadeBalance = await eco.adjust(cfg.daily.bonus, "daily"); renderCredits(); toast(`Daily bonus: +${cfg.daily.bonus} ${cfg.currency} for playing today`); }
+  if (dailyRec.seconds % 10 === 0) eco.saveDaily(dailyRec);
+}, 1000);
 const DIFF_LABEL = { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" };
 
 // ---------- Store view ----------
@@ -98,7 +124,7 @@ async function startAttract(game) {
 async function play(game) {
   attractShell?.destroy(); attractShell = null;
   flushPlayTime();
-  current = game; playStart = Date.now(); store.bumpPlays(game.id);
+  current = game; playStart = Date.now(); store.bumpPlays(game.id); wallet = await makeWallet(game.id); runEarned = 0; lastActivity = Date.now();
   syncDifficultyUI();
   $("storeView").hidden = true; $("playView").hidden = false;
   $("playTitle").textContent = game.title; renderKeystrip(game);
@@ -121,7 +147,7 @@ async function gameOver(result) {
   flushPlayTime();
   const isBest = await store.recordLocalBest(current.id, { score: result.score, level: result.level, ts: Date.now() });
   $("finalScore").textContent = result.score.toLocaleString(); $("finalLevel").textContent = result.level;
-  $("finalNote").textContent = isBest ? "New personal best." : "";
+  $("finalNote").textContent = (isBest ? "New personal best. " : "") + (runEarned > 0 ? `Earned ${runEarned} ${eco.config().currency} this run.` : "");
   const dlg = $("overDialog");
   const showNameField = (show) => { $("finalNameWrap").hidden = !show; $("savedAs").hidden = show; if (show) { $("finalName").value = identity.displayName; setTimeout(() => $("finalName").focus(), 0); } };
   $("savedName").textContent = identity.displayName;
@@ -190,6 +216,28 @@ document.querySelectorAll(".periods button").forEach(b => b.onclick = () => {
   period = b.dataset.period; document.querySelectorAll(".periods button").forEach(x => x.classList.toggle("on", x === b)); loadBoard();
 });
 renderCredits();
+// wallet dialog
+async function openWallet() {
+  const cfg = eco.config(), d = $("walletDialog");
+  $("walletBalance").textContent = arcadeBalance.toLocaleString(); $("walletCur").textContent = cfg.currency;
+  const mins = Math.floor(dailyRec.seconds / 60), need = cfg.daily.minutes;
+  $("walletDaily").textContent = dailyRec.bonus ? `Daily bonus of ${cfg.daily.bonus} earned today ✓` : `Play ${need} active minutes today for +${cfg.daily.bonus} — ${mins}/${need} min so far`;
+  $("walletRules").textContent = `${cfg.perActiveMinute} ${cfg.currency} per active minute · ×${cfg.fullscreenMultiplier} in full screen · idle after ${cfg.idleAfterSeconds}s pauses earning`;
+  const list = $("walletGames"); list.innerHTML = "";
+  for (const g of CATALOG.filter(g => g.status === "ready")) {
+    const credits = await eco.gameCredits(g.id), r = eco.rate(g.id);
+    const row = document.createElement("div"); row.className = "wrow" + (current?.id === g.id ? " cur" : "");
+    row.innerHTML = `<span class="wname">${esc(g.title)}</span><span class="wcred"><b>${credits.toLocaleString()}</b> credits</span><span class="wrate">1 ${cfg.currency} → ${r} cr</span>
+      <span class="wconv"><input type="number" min="1" step="1" value="100" aria-label="tokens to convert"><button type="button">Convert</button></span>`;
+    const inp = row.querySelector("input"), btn = row.querySelector("button"), preview = () => { btn.textContent = `→ ${(Math.floor(+inp.value || 0) * r).toLocaleString()} cr`; btn.disabled = !(+inp.value > 0 && +inp.value <= arcadeBalance); };
+    inp.oninput = preview; preview();
+    btn.onclick = async () => { const res = await eco.convert(g.id, +inp.value); if (!res) { toast("Not enough " + cfg.currency); return; } arcadeBalance = res.balance; renderCredits(); if (wallet && wallet.gameId === g.id) wallet.balance += res.credits; toast(`Converted ${res.tokens} ${cfg.currency} into ${res.credits.toLocaleString()} ${g.title} credits`); openWallet(); };
+    list.appendChild(row);
+  }
+  const hist = await eco.history(); const h = $("walletHistory"); h.innerHTML = hist.slice(0, 12).map(e => `<li><span>${esc({ welcome: "Welcome grant", play: `Play${e.fullscreen ? " (fullscreen)" : ""}${e.game ? " · " + (CATALOG.find(g => g.id === e.game)?.title || e.game) : ""}`, daily: "Daily bonus", convert: `Converted → ${(e.credits || 0).toLocaleString()} ${CATALOG.find(g => g.id === e.game)?.title || ""} credits` }[e.reason] || e.reason)}</span><b class="${e.delta < 0 ? "neg" : "pos"}">${e.delta > 0 ? "+" : ""}${e.delta}</b></li>`).join("") || "<li>No activity yet</li>";
+  if (!d.open) d.showModal();
+}
+$("credits").onclick = openWallet; $("walletBtn").onclick = openWallet;
 $("nameBtn").textContent = identity.displayName || "Set your name";
 $("nameBtn").onclick = () => { $("nameInput").value = identity.displayName; const d = $("nameDialog"); d.showModal(); d.onclose = async () => {
   if (d.returnValue !== "save") return;

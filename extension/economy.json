@@ -1,0 +1,15 @@
+{
+  "currency": "$ARCADE",
+  "installGrant": 1000,
+  "perActiveMinute": 1,
+  "fullscreenMultiplier": 1.5,
+  "idleAfterSeconds": 10,
+  "daily": { "minutes": 5, "bonus": 10 },
+  "rates": {
+    "_comment": "game credits received per 1 $ARCADE. Simpler games convert better; complex games less.",
+    "default": 8,
+    "snake": 12, "breakout": 12, "belt": 10, "rocks": 10, "invaders": 10, "lander": 10, "maze": 10,
+    "missile": 10, "pipedream": 8, "minefield": 8, "solitaire": 8, "stacker": 8, "chopper": 8,
+    "scorched": 6, "rails": 6, "chess": 5, "tower": 5
+  }
+}

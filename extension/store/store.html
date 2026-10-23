@@ -14,7 +14,7 @@
   <a class="wordmark" href="#" id="home">AI<span>ARCADE</span></a>
   <nav class="top-right">
     <span class="status" id="netStatus" title="Leaderboard server">offline</span>
-    <span class="credits" id="credits" title="Credits — earned in any game, spent in any game's shop">0 cr</span>
+    <button class="credits" id="credits" title="$ARCADE wallet — earned by playing, converted into game credits">$ARCADE 0</button>
     <button class="name" id="creditsBtn" title="Who made this and what it's built on">Credits</button>
     <button class="name" id="themeBtn" title="Choose a color theme">Theme</button>
     <button class="name" id="nameBtn" title="Change your player name">Set your name</button>
@@ -74,6 +74,8 @@
         </div>
         <button id="pause" class="ghost" title="P">Pause</button>
         <button id="recBtn" class="ghost rec" title="R — record a clip">● Rec</button>
+        <button id="walletBtn" class="ghost" title="Wallet: convert $ARCADE into this game's credits">Wallet</button>
+        <span class="hud-earn" id="hudEarn"></span>
         <button id="keysBtn" class="ghost" title="?">Keys</button>
         <button id="fullscreenBtn" class="ghost" title="F">⛶</button>
       </div>
@@ -124,6 +126,19 @@
     <div><dt><kbd>?</kbd></dt><dd>This list</dd></div>
   </dl>
   <form method="dialog"><div class="dialog-actions"><button value="close" class="play">Got it</button></div></form>
+</dialog>
+
+<dialog id="walletDialog" class="wallet">
+  <h2><span id="walletCur">$ARCADE</span> wallet</h2>
+  <p class="wbal"><b id="walletBalance">0</b> tokens</p>
+  <p class="wdaily" id="walletDaily"></p>
+  <p class="wrules" id="walletRules"></p>
+  <h3>Game credits</h3>
+  <p class="wnote">Convert tokens into a game's credits. Simpler games convert better; complex games less.</p>
+  <div class="wgames" id="walletGames"></div>
+  <h3>Recent</h3>
+  <ul class="whist" id="walletHistory"></ul>
+  <form method="dialog"><div class="dialog-actions"><button value="close" class="play">Close</button></div></form>
 </dialog>
 
 <dialog id="clipDialog">
